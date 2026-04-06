@@ -41,8 +41,8 @@ async function load() {
     if (filterDateStart.value) params.date_start = filterDateStart.value
     if (filterDateEnd.value) params.date_end = filterDateEnd.value
     const res = await adminApi.getOrders(params)
-    orders.value = res.data?.orders || res.data || []
-    totalPages.value = res.data?.total_pages || 1
+    orders.value = res.data?.items || []
+    totalPages.value = Math.ceil((res.data?.total || 0) / 20)
   } catch (e) {
     console.error(e)
   } finally {
@@ -102,11 +102,11 @@ onMounted(load)
         <div v-if="detailLoading" class="text-gray-400 dark:text-gray-500 text-sm">{{ $t('common.loading') }}</div>
         <div v-else class="space-y-3 text-sm">
           <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.order_no') }}</span><span class="text-gray-800 dark:text-gray-100 font-mono">{{ selectedOrder.order_no }}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.product_name') }}</span><span class="text-gray-800 dark:text-gray-100">{{ selectedOrder.product_name }}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.total_amount') }}</span><span class="text-gray-800 dark:text-gray-100">¥{{ selectedOrder.amount?.toFixed(2) }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.product_name') }}</span><span class="text-gray-800 dark:text-gray-100">{{ selectedOrder.product_name || '-' }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.total_amount') }}</span><span class="text-gray-800 dark:text-gray-100">¥{{ selectedOrder.total_amount?.toFixed(2) }}</span></div>
           <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.quantity') }}</span><span class="text-gray-800 dark:text-gray-100">{{ selectedOrder.quantity }}</span></div>
           <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.email') }}</span><span class="text-gray-800 dark:text-gray-100">{{ selectedOrder.email }}</span></div>
-          <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.payment_method') }}</span><span class="text-gray-800 dark:text-gray-100">{{ payMethodMap[selectedOrder.pay_method] || selectedOrder.pay_method }}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('order.payment_method') }}</span><span class="text-gray-800 dark:text-gray-100">{{ payMethodMap[selectedOrder.payment_method] || selectedOrder.payment_method }}</span></div>
           <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('common.status') }}</span><span class="text-gray-800 dark:text-gray-100">{{ statusMap[selectedOrder.status] || selectedOrder.status }}</span></div>
           <div class="flex justify-between"><span class="text-gray-500 dark:text-gray-400">{{ $t('common.created_at') }}</span><span class="text-gray-800 dark:text-gray-100">{{ selectedOrder.created_at?.replace('T', ' ').slice(0, 19) }}</span></div>
           <div v-if="selectedOrder.cards_snapshot" class="pt-2 border-t border-gray-100 dark:border-gray-700">
@@ -138,10 +138,10 @@ onMounted(load)
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
           <tr v-for="order in orders" :key="order.id" class="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" @click="viewDetail(order)">
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300 font-mono text-xs">{{ order.order_no }}</td>
-            <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ order.product_name }}</td>
-            <td class="px-4 py-3 text-gray-800 dark:text-gray-100">¥{{ order.amount?.toFixed(2) }}</td>
+            <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ order.product_name || '-' }}</td>
+            <td class="px-4 py-3 text-gray-800 dark:text-gray-100">¥{{ order.total_amount?.toFixed(2) }}</td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ order.email }}</td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ payMethodMap[order.pay_method] || order.pay_method }}</td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ payMethodMap[order.payment_method] || order.payment_method }}</td>
             <td class="px-4 py-3">
               <span
                 :class="{

@@ -1,8 +1,9 @@
 use sea_orm::*;
+use std::collections::HashMap;
 
 use aff_common::error::{AppError, AppResult};
 use aff_entity::dto::OrderResponse;
-use aff_entity::entities::order;
+use aff_entity::entities::{order, product};
 
 pub async fn create_order(
     db: &DatabaseConnection,
@@ -189,6 +190,7 @@ pub fn to_order_response(o: order::Model, hide_cards: bool) -> OrderResponse {
         id: o.id,
         order_no: o.order_no,
         product_id: o.product_id,
+        product_name: None,
         quantity: o.quantity,
         total_amount: o.total_amount,
         email: o.email,
@@ -203,4 +205,29 @@ pub fn to_order_response(o: order::Model, hide_cards: bool) -> OrderResponse {
         created_at: o.created_at,
         updated_at: o.updated_at,
     }
+}
+
+pub async fn enrich_orders_with_product_names(
+    db: &DatabaseConnection,
+    orders: Vec<order::Model>,
+) -> AppResult<Vec<OrderResponse>> {
+    let product_ids: Vec<i32> = orders.iter().map(|o| o.product_id).collect::<std::collections::HashSet<_>>().into_iter().collect();
+
+    let products = product::Entity::find()
+        .filter(product::Column::Id.is_in(product_ids))
+        .all(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let name_map: HashMap<i32, String> = products.into_iter().map(|p| (p.id, p.name)).collect();
+
+    Ok(orders
+        .into_iter()
+        .map(|o| {
+            let product_name = name_map.get(&o.product_id).cloned();
+            let mut resp = to_order_response(o, false);
+            resp.product_name = product_name;
+            resp
+        })
+        .collect())
 }

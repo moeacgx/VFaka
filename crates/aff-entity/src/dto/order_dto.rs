@@ -20,6 +20,7 @@ pub struct OrderResponse {
     pub id: i32,
     pub order_no: String,
     pub product_id: i32,
+    pub product_name: Option<String>,
     pub quantity: i32,
     pub total_amount: f64,
     pub email: String,

@@ -2,7 +2,7 @@ use sea_orm::*;
 
 use aff_common::error::{AppError, AppResult};
 use aff_entity::dto::{CreateProductDto, ProductResponse, UpdateProductDto};
-use aff_entity::entities::{category, product};
+use aff_entity::entities::{card, category, product};
 
 pub async fn list_products(
     db: &DatabaseConnection,
@@ -155,21 +155,28 @@ pub async fn update_product(
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-pub async fn delete_product(db: &DatabaseConnection, id: i32) -> AppResult<product::Model> {
+pub async fn delete_product(db: &DatabaseConnection, id: i32) -> AppResult<()> {
     let existing = product::Entity::find_by_id(id)
         .one(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Product {} not found", id)))?;
 
-    let mut model: product::ActiveModel = existing.into();
-    model.is_active = Set(false);
-    model.updated_at = Set(chrono::Utc::now());
-
-    model
-        .update(db)
+    // Delete unsold cards associated with this product
+    card::Entity::delete_many()
+        .filter(card::Column::ProductId.eq(id))
+        .filter(card::Column::Status.eq("available"))
+        .exec(db)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let model: product::ActiveModel = existing.into();
+    model
+        .delete(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(())
 }
 
 fn to_product_response(

@@ -30,8 +30,11 @@ async fn list(
     let (orders, total) =
         order_service::list_orders(&db, page, per_page, query.status.clone(), query.email.clone())
             .await?;
+
+    let items = order_service::enrich_orders_with_product_names(&db, orders).await?;
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "items": orders,
+        "items": items,
         "total": total,
         "page": page,
         "per_page": per_page,
@@ -43,5 +46,6 @@ async fn get(
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let order = order_service::get_order(&db, path.into_inner()).await?;
-    Ok(HttpResponse::Ok().json(order))
+    let items = order_service::enrich_orders_with_product_names(&db, vec![order]).await?;
+    Ok(HttpResponse::Ok().json(items.into_iter().next()))
 }

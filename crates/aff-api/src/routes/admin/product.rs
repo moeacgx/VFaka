@@ -61,8 +61,8 @@ async fn delete(
     db: web::Data<DatabaseConnection>,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
-    let product = product_service::delete_product(&db, path.into_inner()).await?;
-    Ok(HttpResponse::Ok().json(product))
+    product_service::delete_product(&db, path.into_inner()).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({"ok": true})))
 }
 
 async fn restock(

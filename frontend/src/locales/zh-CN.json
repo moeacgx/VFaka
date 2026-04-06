@@ -205,7 +205,11 @@
     "api_url": "接口地址",
     "notify_secret": "通知密钥",
     "save_config": "保存配置",
-    "test_connection": "测试连接"
+    "test_connection": "测试连接",
+    "tron_address": "TRON 钱包地址",
+    "evm_address": "EVM 钱包地址",
+    "show_advanced": "展开高级设置",
+    "hide_advanced": "收起高级设置"
   },
   "aff": {
     "title": "推广计划",

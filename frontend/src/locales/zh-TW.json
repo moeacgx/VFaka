@@ -205,7 +205,11 @@
     "api_url": "介面位址",
     "notify_secret": "通知金鑰",
     "save_config": "儲存設定",
-    "test_connection": "測試連線"
+    "test_connection": "測試連線",
+    "tron_address": "TRON 錢包地址",
+    "evm_address": "EVM 錢包地址",
+    "show_advanced": "展開進階設定",
+    "hide_advanced": "收起進階設定"
   },
   "aff": {
     "title": "推廣計畫",

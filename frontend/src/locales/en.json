@@ -205,7 +205,11 @@
     "api_url": "API URL",
     "notify_secret": "Notify Secret",
     "save_config": "Save Configuration",
-    "test_connection": "Test Connection"
+    "test_connection": "Test Connection",
+    "tron_address": "TRON Wallet Address",
+    "evm_address": "EVM Wallet Address",
+    "show_advanced": "Show Advanced Settings",
+    "hide_advanced": "Hide Advanced Settings"
   },
   "aff": {
     "title": "Affiliate Program",

@@ -17,9 +17,12 @@ const epay = ref({
 
 const tokenpay = ref({
   is_active: false,
-  api_url: '',
+  api_url: 'http://tokenpay:5000',
   notify_secret: '',
+  tron_address: '',
+  evm_address: '',
 })
+const showAdvanced = ref(false)
 
 onMounted(async () => {
   try {
@@ -36,8 +39,10 @@ onMounted(async () => {
       } else if (cfg.channel === 'tokenpay') {
         tokenpay.value.is_active = !!cfg.is_active
         const c = typeof cfg.config === 'string' ? JSON.parse(cfg.config) : (cfg.config || {})
-        tokenpay.value.api_url = c.api_url || ''
+        tokenpay.value.api_url = c.api_url || 'http://tokenpay:5000'
         tokenpay.value.notify_secret = c.notify_secret || ''
+        tokenpay.value.tron_address = c.tron_address || ''
+        tokenpay.value.evm_address = c.evm_address || ''
       }
     }
   } catch (e) {
@@ -75,6 +80,8 @@ async function saveTokenpay() {
       config: {
         api_url: tokenpay.value.api_url,
         notify_secret: tokenpay.value.notify_secret,
+        tron_address: tokenpay.value.tron_address,
+        evm_address: tokenpay.value.evm_address,
       },
     })
     alert(t('common.operation_success'))
@@ -133,13 +140,33 @@ async function saveTokenpay() {
         </div>
         <form @submit.prevent="saveTokenpay" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.api_url') }}</label>
-            <input v-model="tokenpay.api_url" placeholder="https://tokenpay.example.com" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.tron_address') }}</label>
+            <input v-model="tokenpay.tron_address" placeholder="T..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">USDT/USDC TRC20</p>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.notify_secret') }}</label>
-            <input v-model="tokenpay.notify_secret" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" />
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.evm_address') }}</label>
+            <input v-model="tokenpay.evm_address" placeholder="0x..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">USDT/USDC ERC20, Polygon, Base</p>
           </div>
+
+          <!-- Advanced toggle -->
+          <div>
+            <button type="button" @click="showAdvanced = !showAdvanced" class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+              {{ showAdvanced ? $t('payment.hide_advanced') : $t('payment.show_advanced') }}
+            </button>
+          </div>
+          <div v-if="showAdvanced" class="space-y-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.api_url') }}</label>
+              <input v-model="tokenpay.api_url" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.notify_secret') }}</label>
+              <input v-model="tokenpay.notify_secret" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" />
+            </div>
+          </div>
+
           <button type="submit" :disabled="saving === 'tokenpay'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
             {{ saving === 'tokenpay' ? $t('common.saving') : $t('payment.save_config') }}
           </button>
