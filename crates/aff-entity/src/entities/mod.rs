@@ -3,6 +3,7 @@ pub mod category;
 pub mod product;
 pub mod card;
 pub mod order;
+pub mod aff_tier;
 pub mod aff_user;
 pub mod aff_log;
 pub mod withdrawal;

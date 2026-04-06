@@ -8,7 +8,19 @@ interface AffInfo {
   balance: number
   total_earned: number
   total_withdrawn: number
+  level: number
+  level_name: string
+  commission_rate: number
+  next_level: { level: number; name: string; commission_rate: number; required_amount: number; remaining: number } | null
   created_at: string
+}
+
+interface AffTier {
+  id: number
+  level: number
+  name: string
+  commission_rate: number
+  required_amount: number
 }
 
 interface AffLog {
@@ -49,6 +61,7 @@ const wdSuccess = ref('')
 // Logs
 const affLogs = ref<AffLog[]>([])
 const logsLoading = ref(false)
+const allTiers = ref<AffTier[]>([])
 
 const affLink = computed(() => {
   if (!affInfo.value) return ''
@@ -92,8 +105,12 @@ async function queryBalance() {
   affInfo.value = null
 
   try {
-    const res = await publicApi.queryAff(queryEmail.value.trim())
+    const [res, tiersRes] = await Promise.all([
+      publicApi.queryAff(queryEmail.value.trim()),
+      publicApi.getAffTiers(),
+    ])
     affInfo.value = res.data
+    allTiers.value = tiersRes.data || []
     // Also load logs
     loadLogs()
   } catch (e: any) {
@@ -232,6 +249,29 @@ async function submitWithdraw() {
 
       <!-- Balance info -->
       <div v-if="affInfo" class="mt-5">
+        <!-- Tier badge -->
+        <div class="flex items-center gap-3 mb-4">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+            :class="affInfo.level <= 1 ? 'bg-gray-100 text-gray-700' : affInfo.level === 2 ? 'bg-blue-100 text-blue-700' : affInfo.level === 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'">
+            {{ affInfo.level_name }} · 返佣 {{ (affInfo.commission_rate * 100).toFixed(1) }}%
+          </span>
+          <span v-if="affInfo.next_level" class="text-xs text-gray-400">
+            距升级 {{ affInfo.next_level.name }} 还需邀请 ¥{{ affInfo.next_level.remaining.toFixed(2) }}
+          </span>
+        </div>
+
+        <!-- Progress bar to next level -->
+        <div v-if="affInfo.next_level" class="mb-4">
+          <div class="flex justify-between text-xs text-gray-400 mb-1">
+            <span>{{ affInfo.level_name }}</span>
+            <span>{{ affInfo.next_level.name }} ({{ (affInfo.next_level.commission_rate * 100).toFixed(0) }}%)</span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-2">
+            <div class="bg-blue-500 h-2 rounded-full transition-all" :style="{ width: Math.min(100, (affInfo.total_earned / affInfo.next_level.required_amount) * 100).toFixed(1) + '%' }"></div>
+          </div>
+          <div class="text-xs text-gray-400 mt-1">累计邀请 ¥{{ affInfo.total_earned.toFixed(2) }} / ¥{{ affInfo.next_level.required_amount.toFixed(2) }}</div>
+        </div>
+
         <div class="grid grid-cols-3 gap-4 mb-4">
           <div class="bg-gray-50 rounded-xl p-4 text-center">
             <div class="text-xs text-gray-400 mb-1">可用余额</div>
@@ -244,6 +284,20 @@ async function submitWithdraw() {
           <div class="bg-gray-50 rounded-xl p-4 text-center">
             <div class="text-xs text-gray-400 mb-1">已提现</div>
             <div class="text-xl font-bold text-gray-900">¥{{ affInfo.total_withdrawn.toFixed(2) }}</div>
+          </div>
+        </div>
+
+        <!-- Tier levels overview -->
+        <div v-if="allTiers.length > 1" class="bg-gray-50 rounded-xl p-4 mb-4">
+          <div class="text-xs text-gray-400 mb-2">等级体系</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div v-for="tier in allTiers" :key="tier.level"
+              class="text-center p-2 rounded-lg border text-xs"
+              :class="affInfo.level === tier.level ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-500'">
+              <div class="font-medium">{{ tier.name }}</div>
+              <div class="text-green-600 font-semibold">{{ (tier.commission_rate * 100).toFixed(0) }}%</div>
+              <div v-if="tier.required_amount > 0" class="text-gray-400">≥¥{{ tier.required_amount }}</div>
+            </div>
           </div>
         </div>
 
