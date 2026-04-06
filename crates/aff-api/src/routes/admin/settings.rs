@@ -11,14 +11,12 @@ pub struct TestNotifyDto {
     pub target: Option<String>,
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/settings")
-            .route("", web::get().to(get_all))
-            .route("", web::put().to(update))
-            .route("/test-telegram", web::post().to(test_telegram))
-            .route("/test-email", web::post().to(test_email)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/settings")
+        .route("", web::get().to(get_all))
+        .route("", web::put().to(update))
+        .route("/test-telegram", web::post().to(test_telegram))
+        .route("/test-email", web::post().to(test_email))
 }
 
 async fn get_all(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {

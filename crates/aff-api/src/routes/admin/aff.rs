@@ -6,16 +6,14 @@ use aff_common::error::AppResult;
 use aff_core::services::{aff_service, settings_service};
 use aff_entity::dto::{CreateAffTierDto, UpdateAffTierDto};
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/aff")
-            .route("/users", web::get().to(list_users))
-            .route("/settings", web::put().to(update_settings))
-            .route("/tiers", web::get().to(list_tiers))
-            .route("/tiers", web::post().to(create_tier))
-            .route("/tiers/{level}", web::put().to(update_tier))
-            .route("/tiers/{level}", web::delete().to(delete_tier)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/aff")
+        .route("/users", web::get().to(list_users))
+        .route("/settings", web::put().to(update_settings))
+        .route("/tiers", web::get().to(list_tiers))
+        .route("/tiers", web::post().to(create_tier))
+        .route("/tiers/{level}", web::put().to(update_tier))
+        .route("/tiers/{level}", web::delete().to(delete_tier))
 }
 
 async fn list_users(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {

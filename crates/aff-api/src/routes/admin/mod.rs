@@ -19,26 +19,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::scope("/admin")
             // Auth routes (no JWT required)
             .configure(auth::configure)
-            // Super admin routes (admin management, settings, payment config)
-            .service(
-                web::scope("")
-                    .wrap(SuperAdminAuth)
-                    .configure(settings::configure)
-                    .configure(payment::configure)
-                    .configure(admin_mgmt::configure),
-            )
-            // Regular admin routes (require JWT but any role)
-            .service(
-                web::scope("")
-                    .wrap(JwtAuth)
-                    .configure(dashboard::configure)
-                    .configure(category::configure)
-                    .configure(product::configure)
-                    .configure(card::configure)
-                    .configure(order::configure)
-                    .configure(withdrawal::configure)
-                    .configure(aff::configure)
-                    .configure(upload::configure),
-            ),
+            // Super admin routes
+            .service(settings::scope().wrap(SuperAdminAuth))
+            .service(payment::scope().wrap(SuperAdminAuth))
+            .service(admin_mgmt::scope().wrap(SuperAdminAuth))
+            // Regular admin routes
+            .service(dashboard::scope().wrap(JwtAuth))
+            .service(category::scope().wrap(JwtAuth))
+            .service(product::scope().wrap(JwtAuth))
+            .service(card::scope().wrap(JwtAuth))
+            .service(order::scope().wrap(JwtAuth))
+            .service(withdrawal::scope().wrap(JwtAuth))
+            .service(aff::scope().wrap(JwtAuth))
+            .service(upload::scope().wrap(JwtAuth)),
     );
 }

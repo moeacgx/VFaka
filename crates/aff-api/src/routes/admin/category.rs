@@ -10,16 +10,14 @@ pub struct BatchDeleteDto {
     pub ids: Vec<i32>,
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/categories")
-            .route("", web::get().to(list))
-            .route("", web::post().to(create))
-            .route("/batch-delete", web::post().to(batch_delete))
-            .route("/{id}", web::get().to(get))
-            .route("/{id}", web::put().to(update))
-            .route("/{id}", web::delete().to(delete)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/categories")
+        .route("", web::get().to(list))
+        .route("", web::post().to(create))
+        .route("/batch-delete", web::post().to(batch_delete))
+        .route("/{id}", web::get().to(get))
+        .route("/{id}", web::put().to(update))
+        .route("/{id}", web::delete().to(delete))
 }
 
 async fn list(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {

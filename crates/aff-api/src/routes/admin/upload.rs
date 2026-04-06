@@ -146,6 +146,7 @@ async fn upload_to_s3(db: &DatabaseConnection, filename: &str, data: &[u8]) -> A
     Ok(format!("{}/{}/{}", endpoint.trim_end_matches('/'), bucket, filename))
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.route("/upload", web::post().to(upload_file));
+pub fn scope() -> actix_web::Scope {
+    web::scope("/upload")
+        .route("", web::post().to(upload_file))
 }

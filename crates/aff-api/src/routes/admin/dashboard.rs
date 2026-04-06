@@ -4,8 +4,9 @@ use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Colu
 use aff_common::error::{AppError, AppResult};
 use aff_entity::entities::{order, product, card};
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(web::resource("/dashboard").route(web::get().to(stats)));
+pub fn scope() -> actix_web::Scope {
+    web::scope("/dashboard")
+        .route("", web::get().to(stats))
 }
 
 async fn stats(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {

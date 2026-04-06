@@ -12,13 +12,11 @@ pub struct CreateAdminDto {
     pub role: String,
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/admins")
-            .route("", web::get().to(list))
-            .route("", web::post().to(create))
-            .route("/{id}", web::delete().to(delete)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/admins")
+        .route("", web::get().to(list))
+        .route("", web::post().to(create))
+        .route("/{id}", web::delete().to(delete))
 }
 
 async fn list(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {

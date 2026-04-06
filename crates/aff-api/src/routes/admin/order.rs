@@ -13,12 +13,10 @@ pub struct OrderListQuery {
     pub email: Option<String>,
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/orders")
-            .route("", web::get().to(list))
-            .route("/{id}", web::get().to(get)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/orders")
+        .route("", web::get().to(list))
+        .route("/{id}", web::get().to(get))
 }
 
 async fn list(

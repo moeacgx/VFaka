@@ -12,13 +12,11 @@ pub struct CardListQuery {
     pub status: Option<String>,
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/cards")
-            .route("", web::get().to(list))
-            .route("/import", web::post().to(import))
-            .route("/{id}", web::delete().to(delete)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/cards")
+        .route("", web::get().to(list))
+        .route("/import", web::post().to(import))
+        .route("/{id}", web::delete().to(delete))
 }
 
 async fn list(

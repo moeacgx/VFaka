@@ -20,14 +20,12 @@ pub struct CompleteBody {
     pub tx_hash: String,
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/withdrawals")
-            .route("", web::get().to(list))
-            .route("/{id}/approve", web::put().to(approve))
-            .route("/{id}/reject", web::put().to(reject))
-            .route("/{id}/complete", web::put().to(complete)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/withdrawals")
+        .route("", web::get().to(list))
+        .route("/{id}/approve", web::put().to(approve))
+        .route("/{id}/reject", web::put().to(reject))
+        .route("/{id}/complete", web::put().to(complete))
 }
 
 async fn list(

@@ -11,12 +11,10 @@ pub struct UpdatePaymentConfigDto {
     pub is_active: bool,
 }
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/payment-configs")
-            .route("", web::get().to(list))
-            .route("/{channel}", web::put().to(update)),
-    );
+pub fn scope() -> actix_web::Scope {
+    web::scope("/payment-configs")
+        .route("", web::get().to(list))
+        .route("/{channel}", web::put().to(update))
 }
 
 fn mask_sensitive_value(value: &str) -> String {
