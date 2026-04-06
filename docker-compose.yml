@@ -5,6 +5,7 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/app/data
+      - ./config.toml:/app/config.toml:ro
       - ./config.local.toml:/app/config.local.toml:ro
     environment:
       - RUST_LOG=info

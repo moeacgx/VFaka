@@ -121,16 +121,20 @@ pub async fn lock_cards(
     quantity: i32,
     order_id: i32,
 ) -> AppResult<Vec<card::Model>> {
+    let txn = db.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // SELECT candidate cards within transaction
     let cards = card::Entity::find()
         .filter(card::Column::ProductId.eq(product_id))
         .filter(card::Column::Status.eq("available"))
         .order_by_asc(card::Column::Id)
         .limit(quantity as u64)
-        .all(db)
+        .all(&txn)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     if (cards.len() as i32) < quantity {
+        txn.rollback().await.map_err(|e| AppError::Internal(e.to_string()))?;
         return Err(AppError::Conflict(format!(
             "Not enough cards: requested {}, available {}",
             quantity,
@@ -140,21 +144,33 @@ pub async fn lock_cards(
 
     let card_ids: Vec<i32> = cards.iter().map(|c| c.id).collect();
 
-    card::Entity::update_many()
+    // CAS: UPDATE only if status is still 'available' — prevents double-lock
+    let update_result = card::Entity::update_many()
         .col_expr(card::Column::Status, Expr::value("locked"))
         .col_expr(card::Column::OrderId, Expr::value(Some(order_id)))
         .filter(card::Column::Id.is_in(card_ids.clone()))
-        .exec(db)
+        .filter(card::Column::Status.eq("available"))
+        .exec(&txn)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // Re-fetch the updated cards
+    if update_result.rows_affected != quantity as u64 {
+        txn.rollback().await.map_err(|e| AppError::Internal(e.to_string()))?;
+        return Err(AppError::Conflict(format!(
+            "Card lock conflict: expected to lock {}, actually locked {}",
+            quantity, update_result.rows_affected
+        )));
+    }
+
+    // Re-fetch the updated cards within transaction
     let updated_cards = card::Entity::find()
         .filter(card::Column::Id.is_in(card_ids))
         .order_by_asc(card::Column::Id)
-        .all(db)
+        .all(&txn)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    txn.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
 
     sync_stock_count(db, product_id).await?;
 

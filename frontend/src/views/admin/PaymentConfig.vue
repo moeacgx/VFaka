@@ -31,14 +31,16 @@ onMounted(async () => {
     for (const cfg of configs) {
       if (cfg.channel === 'epay') {
         epay.value.is_active = !!cfg.is_active
-        const c = typeof cfg.config === 'string' ? JSON.parse(cfg.config) : (cfg.config || {})
+        const raw = cfg.config_json || '{}'
+        const c = typeof raw === 'string' ? JSON.parse(raw) : raw
         epay.value.pid = c.pid || ''
         epay.value.merchant_private_key = c.merchant_private_key || ''
         epay.value.platform_public_key = c.platform_public_key || ''
         epay.value.api_url = c.api_url || ''
       } else if (cfg.channel === 'tokenpay') {
         tokenpay.value.is_active = !!cfg.is_active
-        const c = typeof cfg.config === 'string' ? JSON.parse(cfg.config) : (cfg.config || {})
+        const raw = cfg.config_json || '{}'
+        const c = typeof raw === 'string' ? JSON.parse(raw) : raw
         tokenpay.value.api_url = c.api_url || 'http://tokenpay:5000'
         tokenpay.value.notify_secret = c.notify_secret || ''
         tokenpay.value.tron_address = c.tron_address || ''
@@ -57,12 +59,12 @@ async function saveEpay() {
   try {
     await adminApi.updatePaymentConfig('epay', {
       is_active: epay.value.is_active,
-      config: {
+      config_json: JSON.stringify({
         pid: epay.value.pid,
         merchant_private_key: epay.value.merchant_private_key,
         platform_public_key: epay.value.platform_public_key,
         api_url: epay.value.api_url,
-      },
+      }),
     })
     alert(t('common.operation_success'))
   } catch (e: any) {
@@ -77,12 +79,12 @@ async function saveTokenpay() {
   try {
     await adminApi.updatePaymentConfig('tokenpay', {
       is_active: tokenpay.value.is_active,
-      config: {
+      config_json: JSON.stringify({
         api_url: tokenpay.value.api_url,
         notify_secret: tokenpay.value.notify_secret,
         tron_address: tokenpay.value.tron_address,
         evm_address: tokenpay.value.evm_address,
-      },
+      }),
     })
     alert(t('common.operation_success'))
   } catch (e: any) {

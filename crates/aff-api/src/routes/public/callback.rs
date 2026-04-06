@@ -224,8 +224,17 @@ pub async fn epay_notify(
             AppError::NotFound(format!("Order {} not found", cb_data.order_no))
         })?;
 
-    // Skip if already processed (idempotent)
-    if order.status != "pending" {
+    // Idempotent: skip if fully delivered; allow retry if paid but not yet delivered
+    if order.status == "delivered" {
+        info!(order_no = %cb_data.order_no, "Order already delivered, skipping");
+        return Ok(HttpResponse::Ok().body("success"));
+    }
+    if order.status == "failed" {
+        info!(order_no = %cb_data.order_no, "Order marked as failed, skipping");
+        return Ok(HttpResponse::Ok().body("success"));
+    }
+    let needs_delivery = order.status == "paid" && order.cards_snapshot.is_none();
+    if order.status != "pending" && !needs_delivery {
         info!(order_no = %cb_data.order_no, status = %order.status, "Order already processed, skipping");
         return Ok(HttpResponse::Ok().body("success"));
     }
@@ -242,8 +251,10 @@ pub async fn epay_notify(
         return Ok(HttpResponse::BadRequest().body("amount mismatch"));
     }
 
-    // Update to paid
-    order_service::update_order_status(db.get_ref(), &cb_data.order_no, "paid").await?;
+    // Update to paid (idempotent — no-op if already paid)
+    if order.status == "pending" {
+        order_service::update_order_status(db.get_ref(), &cb_data.order_no, "paid").await?;
+    }
     if !cb_data.trade_no.is_empty() {
         order_service::update_order_trade_no(db.get_ref(), &cb_data.order_no, &cb_data.trade_no)
             .await?;
@@ -306,7 +317,17 @@ pub async fn tokenpay_notify(
             AppError::NotFound(format!("Order {} not found", cb_data.order_no))
         })?;
 
-    if order.status != "pending" {
+    // Idempotent: skip if fully delivered; allow retry if paid but not yet delivered
+    if order.status == "delivered" {
+        info!(order_no = %cb_data.order_no, "Order already delivered, skipping");
+        return Ok(HttpResponse::Ok().body("ok"));
+    }
+    if order.status == "failed" {
+        info!(order_no = %cb_data.order_no, "Order marked as failed, skipping");
+        return Ok(HttpResponse::Ok().body("ok"));
+    }
+    let needs_delivery = order.status == "paid" && order.cards_snapshot.is_none();
+    if order.status != "pending" && !needs_delivery {
         info!(order_no = %cb_data.order_no, status = %order.status, "Order already processed, skipping");
         return Ok(HttpResponse::Ok().body("ok"));
     }
@@ -323,8 +344,10 @@ pub async fn tokenpay_notify(
         return Ok(HttpResponse::BadRequest().body("amount mismatch"));
     }
 
-    // Update to paid
-    order_service::update_order_status(db.get_ref(), &cb_data.order_no, "paid").await?;
+    // Update to paid (idempotent — no-op if already paid)
+    if order.status == "pending" {
+        order_service::update_order_status(db.get_ref(), &cb_data.order_no, "paid").await?;
+    }
     if !cb_data.trade_no.is_empty() {
         order_service::update_order_trade_no(db.get_ref(), &cb_data.order_no, &cb_data.trade_no)
             .await?;

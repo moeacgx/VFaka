@@ -232,7 +232,7 @@ impl MigrationTrait for Migration {
             .into_table(PaymentConfigs::Table)
             .columns([PaymentConfigs::Channel, PaymentConfigs::IsActive, PaymentConfigs::ConfigJson])
             .values_panic(["epay".into(), true.into(), r#"{"pid":"","merchant_private_key":"","platform_public_key":"","api_url":"https://pay.myzfw.com"}"#.into()])
-            .values_panic(["tokenpay".into(), true.into(), r#"{"api_url":"http://127.0.0.1:5000","notify_secret":"666"}"#.into()])
+            .values_panic(["tokenpay".into(), true.into(), r#"{"api_url":"http://127.0.0.1:5000","notify_secret":""}"#.into()])
             .to_owned();
         manager.exec_stmt(insert_pay).await?;
 

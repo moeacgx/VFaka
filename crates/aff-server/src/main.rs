@@ -111,17 +111,27 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("Starting AFF Card Shop on {}:{}", host, port);
 
     let db_data = actix_web::web::Data::new(db.clone());
+    let config_clone = config.clone();
     let config_data = actix_web::web::Data::new(config);
 
     // Start order timeout cleanup task
     aff_core::tasks::order_timeout::start_cleanup_task(Arc::new(db));
 
     actix_web::HttpServer::new(move || {
-        let cors = actix_cors::Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header()
-            .max_age(3600);
+        let cors = if let Some(ref base_url) = config_clone.server.public_base_url {
+            actix_cors::Cors::default()
+                .allowed_origin(base_url)
+                .allowed_origin(&format!("http://{}:{}", config_clone.server.host, config_clone.server.port))
+                .allow_any_method()
+                .allow_any_header()
+                .max_age(3600)
+        } else {
+            actix_cors::Cors::default()
+                .allow_any_origin()
+                .allow_any_method()
+                .allow_any_header()
+                .max_age(3600)
+        };
 
         let mut app = actix_web::App::new()
             .wrap(cors)
