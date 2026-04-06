@@ -162,10 +162,9 @@ pub async fn delete_product(db: &DatabaseConnection, id: i32) -> AppResult<()> {
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Product {} not found", id)))?;
 
-    // Delete unsold cards associated with this product
+    // Delete all cards associated with this product
     card::Entity::delete_many()
         .filter(card::Column::ProductId.eq(id))
-        .filter(card::Column::Status.eq("available"))
         .exec(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -177,6 +176,23 @@ pub async fn delete_product(db: &DatabaseConnection, id: i32) -> AppResult<()> {
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     Ok(())
+}
+
+pub async fn batch_delete_products(db: &DatabaseConnection, ids: Vec<i32>) -> AppResult<u64> {
+    // Delete all cards for these products
+    card::Entity::delete_many()
+        .filter(card::Column::ProductId.is_in(ids.clone()))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let result = product::Entity::delete_many()
+        .filter(product::Column::Id.is_in(ids))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(result.rows_affected)
 }
 
 fn to_product_response(

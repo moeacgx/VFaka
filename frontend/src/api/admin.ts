@@ -10,12 +10,14 @@ export const adminApi = {
   createCategory: (data: any) => request.post('/admin/categories', data),
   updateCategory: (id: number, data: any) => request.put(`/admin/categories/${id}`, data),
   deleteCategory: (id: number) => request.delete(`/admin/categories/${id}`),
+  batchDeleteCategories: (ids: number[]) => request.post('/admin/categories/batch-delete', { ids }),
 
   // Products
   getProducts: (params?: any) => request.get('/admin/products', { params }),
   createProduct: (data: any) => request.post('/admin/products', data),
   updateProduct: (id: number, data: any) => request.put(`/admin/products/${id}`, data),
   deleteProduct: (id: number) => request.delete(`/admin/products/${id}`),
+  batchDeleteProducts: (ids: number[]) => request.post('/admin/products/batch-delete', { ids }),
   restockProduct: (id: number, data: any) => request.post(`/admin/products/${id}/restock`, data),
 
   // Cards

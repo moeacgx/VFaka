@@ -38,6 +38,7 @@
     "operation_success": "操作成功",
     "operation_failed": "操作失敗",
     "confirm_delete": "確認刪除？",
+    "batch_delete": "批量刪除",
     "no_data": "暫無資料",
     "processing": "處理中...",
     "submitting": "提交中...",

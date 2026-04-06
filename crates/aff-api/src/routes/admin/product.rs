@@ -11,11 +11,17 @@ pub struct ProductListQuery {
     pub category_id: Option<i32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct BatchDeleteDto {
+    pub ids: Vec<i32>,
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/products")
             .route("", web::get().to(list))
             .route("", web::post().to(create))
+            .route("/batch-delete", web::post().to(batch_delete))
             .route("/{id}", web::get().to(get))
             .route("/{id}", web::put().to(update))
             .route("/{id}", web::delete().to(delete))
@@ -63,6 +69,14 @@ async fn delete(
 ) -> AppResult<HttpResponse> {
     product_service::delete_product(&db, path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({"ok": true})))
+}
+
+async fn batch_delete(
+    db: web::Data<DatabaseConnection>,
+    body: web::Json<BatchDeleteDto>,
+) -> AppResult<HttpResponse> {
+    let count = product_service::batch_delete_products(&db, body.into_inner().ids).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({"ok": true, "deleted": count})))
 }
 
 async fn restock(

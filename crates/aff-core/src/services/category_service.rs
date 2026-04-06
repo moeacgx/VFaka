@@ -1,4 +1,5 @@
 use sea_orm::*;
+use sea_orm::prelude::Expr;
 
 use aff_common::error::{AppError, AppResult};
 use aff_entity::dto::{CreateCategoryDto, UpdateCategoryDto};
@@ -63,18 +64,13 @@ pub async fn update_category(
 pub async fn delete_category(db: &DatabaseConnection, id: i32) -> AppResult<()> {
     let _existing = get_category(db, id).await?;
 
-    let product_count = product::Entity::find()
+    // Set products in this category to uncategorized (null) instead of blocking
+    product::Entity::update_many()
+        .col_expr(product::Column::CategoryId, Expr::value(Option::<i32>::None))
         .filter(product::Column::CategoryId.eq(id))
-        .count(db)
+        .exec(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-
-    if product_count > 0 {
-        return Err(AppError::Conflict(format!(
-            "Category {} has {} products, cannot delete",
-            id, product_count
-        )));
-    }
 
     category::Entity::delete_by_id(id)
         .exec(db)
@@ -82,4 +78,22 @@ pub async fn delete_category(db: &DatabaseConnection, id: i32) -> AppResult<()> 
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     Ok(())
+}
+
+pub async fn batch_delete_categories(db: &DatabaseConnection, ids: Vec<i32>) -> AppResult<u64> {
+    // Unlink products from these categories
+    product::Entity::update_many()
+        .col_expr(product::Column::CategoryId, Expr::value(Option::<i32>::None))
+        .filter(product::Column::CategoryId.is_in(ids.clone()))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let result = category::Entity::delete_many()
+        .filter(category::Column::Id.is_in(ids))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(result.rows_affected)
 }

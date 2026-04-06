@@ -38,6 +38,7 @@
     "operation_success": "Operation successful",
     "operation_failed": "Operation failed",
     "confirm_delete": "Confirm delete?",
+    "batch_delete": "Batch Delete",
     "no_data": "No data",
     "processing": "Processing...",
     "submitting": "Submitting...",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
 
@@ -12,12 +12,20 @@ const showRestock = ref(false)
 const editing = ref<any>(null)
 const uploadingImage = ref(false)
 const uploadingVideo = ref(false)
+const selectedIds = ref<number[]>([])
+
+const allSelected = computed({
+  get: () => products.value.length > 0 && selectedIds.value.length === products.value.length,
+  set: (val: boolean) => {
+    selectedIds.value = val ? products.value.map(p => p.id) : []
+  }
+})
 
 const defaultForm = () => ({
   name: '', category_id: null as number | null, price: 0, description: '',
-  pay_alipay: true, pay_wechat: true, pay_qqpay: false,
-  pay_usdt_trc20: false, pay_usdt_erc20: false, pay_usdt_polygon: false,
-  post_action_type: 'none', post_action_value: '',
+  allow_alipay: true, allow_wxpay: true, allow_qqpay: false,
+  allow_usdt_trc20: false, allow_usdt_erc20: false, allow_trx: false,
+  post_pay_action_type: 'none', post_pay_action_value: '',
   aff_commission_rate: null as number | null,
   sort_order: 0, min_quantity: 1, max_quantity: 10, is_active: true,
   image_url: null as string | null, video_url: null as string | null,
@@ -71,6 +79,7 @@ async function load() {
     const [pRes, cRes] = await Promise.all([adminApi.getProducts(), adminApi.getCategories()])
     products.value = pRes.data || []
     categories.value = cRes.data || []
+    selectedIds.value = []
   } catch (e) {
     console.error(e)
   } finally {
@@ -89,9 +98,9 @@ function openEdit(p: any) {
   editing.value = p
   form.value = {
     name: p.name, category_id: p.category_id, price: p.price, description: p.description || '',
-    pay_alipay: !!p.pay_alipay, pay_wechat: !!p.pay_wechat, pay_qqpay: !!p.pay_qqpay,
-    pay_usdt_trc20: !!p.pay_usdt_trc20, pay_usdt_erc20: !!p.pay_usdt_erc20, pay_usdt_polygon: !!p.pay_usdt_polygon,
-    post_action_type: p.post_action_type || 'none', post_action_value: p.post_action_value || '',
+    allow_alipay: !!p.allow_alipay, allow_wxpay: !!p.allow_wxpay, allow_qqpay: !!p.allow_qqpay,
+    allow_usdt_trc20: !!p.allow_usdt_trc20, allow_usdt_erc20: !!p.allow_usdt_erc20, allow_trx: !!p.allow_trx,
+    post_pay_action_type: p.post_pay_action_type || 'none', post_pay_action_value: p.post_pay_action_value || '',
     aff_commission_rate: p.aff_commission_rate ?? null,
     sort_order: p.sort_order || 0, min_quantity: p.min_quantity || 1, max_quantity: p.max_quantity || 10, is_active: p.is_active !== false,
     image_url: p.image_url || null, video_url: p.video_url || null,
@@ -124,6 +133,23 @@ async function remove(id: number) {
   }
 }
 
+async function batchDelete() {
+  if (selectedIds.value.length === 0) return
+  if (!confirm(t('common.confirm_delete') + ` (${selectedIds.value.length})`)) return
+  try {
+    await adminApi.batchDeleteProducts(selectedIds.value)
+    await load()
+  } catch (e: any) {
+    alert(e.response?.data?.error || t('common.operation_failed'))
+  }
+}
+
+function toggleSelect(id: number) {
+  const idx = selectedIds.value.indexOf(id)
+  if (idx >= 0) selectedIds.value.splice(idx, 1)
+  else selectedIds.value.push(id)
+}
+
 function openRestock() {
   restockForm.value = { product_id: products.value[0]?.id || null, cards: '' }
   showRestock.value = true
@@ -145,10 +171,6 @@ async function submitRestock() {
   }
 }
 
-function getCategoryName(id: number) {
-  return categories.value.find(c => c.id === id)?.name || '-'
-}
-
 onMounted(load)
 </script>
 
@@ -157,6 +179,7 @@ onMounted(load)
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-base font-medium text-gray-800 dark:text-gray-100">{{ $t('product.product_list') }}</h3>
       <div class="flex gap-2">
+        <button v-if="selectedIds.length > 0" @click="batchDelete" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors">{{ $t('common.batch_delete') }} ({{ selectedIds.length }})</button>
         <button @click="openRestock" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors">{{ $t('product.restock') }}</button>
         <button @click="openAdd" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">{{ $t('product.add_product') }}</button>
       </div>
@@ -226,26 +249,26 @@ onMounted(load)
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ $t('product.payment_methods') }}</label>
             <div class="flex flex-wrap gap-4">
-              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_alipay" type="checkbox" /> {{ $t('product.alipay') }}</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_wechat" type="checkbox" /> {{ $t('product.wxpay') }}</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_qqpay" type="checkbox" /> {{ $t('product.qqpay') }}</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_usdt_trc20" type="checkbox" /> {{ $t('product.usdt_trc20') }}</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_usdt_erc20" type="checkbox" /> {{ $t('product.usdt_erc20') }}</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_usdt_polygon" type="checkbox" /> {{ $t('product.usdt_polygon') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.allow_alipay" type="checkbox" /> {{ $t('product.alipay') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.allow_wxpay" type="checkbox" /> {{ $t('product.wxpay') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.allow_qqpay" type="checkbox" /> {{ $t('product.qqpay') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.allow_usdt_trc20" type="checkbox" /> {{ $t('product.usdt_trc20') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.allow_usdt_erc20" type="checkbox" /> {{ $t('product.usdt_erc20') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.allow_trx" type="checkbox" /> {{ $t('product.trx') }}</label>
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.post_action_type') }}</label>
-              <select v-model="form.post_action_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+              <select v-model="form.post_pay_action_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
                 <option value="none">{{ $t('common.none') }}</option>
                 <option value="webhook">{{ $t('product.webhook') }}</option>
                 <option value="command">{{ $t('product.command') }}</option>
               </select>
             </div>
-            <div v-if="form.post_action_type !== 'none'">
+            <div v-if="form.post_pay_action_type !== 'none'">
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.post_action_value') }}</label>
-              <input v-model="form.post_action_value" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+              <input v-model="form.post_pay_action_value" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -294,6 +317,7 @@ onMounted(load)
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="bg-gray-50 dark:bg-gray-900 text-left text-gray-500 dark:text-gray-400">
+            <th class="px-4 py-3 w-10"><input type="checkbox" v-model="allSelected" /></th>
             <th class="px-4 py-3 font-medium">ID</th>
             <th class="px-4 py-3 font-medium">{{ $t('product.name') }}</th>
             <th class="px-4 py-3 font-medium">{{ $t('product.category') }}</th>
@@ -306,12 +330,13 @@ onMounted(load)
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
           <tr v-for="p in products" :key="p.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <td class="px-4 py-3"><input type="checkbox" :checked="selectedIds.includes(p.id)" @change="toggleSelect(p.id)" /></td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.id }}</td>
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ p.name }}</td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ getCategoryName(p.category_id) }}</td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.category_name || '-' }}</td>
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">¥{{ p.price?.toFixed(2) }}</td>
-            <td class="px-4 py-3" :class="(p.stock ?? 0) < 5 ? 'text-red-600 font-medium' : 'text-gray-600 dark:text-gray-300'">{{ p.stock ?? 0 }}</td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.sold ?? 0 }}</td>
+            <td class="px-4 py-3" :class="(p.stock_count ?? 0) < 5 ? 'text-red-600 font-medium' : 'text-gray-600 dark:text-gray-300'">{{ p.stock_count ?? 0 }}</td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.sales_count ?? 0 }}</td>
             <td class="px-4 py-3">
               <span :class="p.is_active ? 'text-green-600 bg-green-50' : 'text-gray-500 bg-gray-100'" class="inline-block px-2 py-0.5 rounded text-xs font-medium">
                 {{ p.is_active ? $t('product.active') : $t('product.inactive') }}
@@ -323,7 +348,7 @@ onMounted(load)
             </td>
           </tr>
           <tr v-if="products.length === 0">
-            <td colspan="8" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
+            <td colspan="9" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
           </tr>
         </tbody>
       </table>

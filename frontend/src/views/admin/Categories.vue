@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
 
@@ -9,12 +9,21 @@ const categories = ref<any[]>([])
 const showForm = ref(false)
 const editing = ref<any>(null)
 const form = ref({ name: '', sort_order: 0, is_active: true })
+const selectedIds = ref<number[]>([])
+
+const allSelected = computed({
+  get: () => categories.value.length > 0 && selectedIds.value.length === categories.value.length,
+  set: (val: boolean) => {
+    selectedIds.value = val ? categories.value.map(c => c.id) : []
+  }
+})
 
 async function load() {
   loading.value = true
   try {
     const res = await adminApi.getCategories()
     categories.value = res.data || []
+    selectedIds.value = []
   } catch (e) {
     console.error(e)
   } finally {
@@ -58,6 +67,23 @@ async function remove(id: number) {
   }
 }
 
+async function batchDelete() {
+  if (selectedIds.value.length === 0) return
+  if (!confirm(t('common.confirm_delete') + ` (${selectedIds.value.length})`)) return
+  try {
+    await adminApi.batchDeleteCategories(selectedIds.value)
+    await load()
+  } catch (e: any) {
+    alert(e.response?.data?.error || t('common.operation_failed'))
+  }
+}
+
+function toggleSelect(id: number) {
+  const idx = selectedIds.value.indexOf(id)
+  if (idx >= 0) selectedIds.value.splice(idx, 1)
+  else selectedIds.value.push(id)
+}
+
 async function toggleStatus(cat: any) {
   try {
     await adminApi.updateCategory(cat.id, { ...cat, is_active: !cat.is_active })
@@ -74,9 +100,14 @@ onMounted(load)
   <div>
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-base font-medium text-gray-800 dark:text-gray-100">{{ $t('category.category_list') }}</h3>
-      <button @click="openAdd" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
-        {{ $t('category.add_category') }}
-      </button>
+      <div class="flex gap-2">
+        <button v-if="selectedIds.length > 0" @click="batchDelete" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors">
+          {{ $t('common.batch_delete') }} ({{ selectedIds.length }})
+        </button>
+        <button @click="openAdd" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+          {{ $t('category.add_category') }}
+        </button>
+      </div>
     </div>
 
     <!-- Form modal -->
@@ -110,6 +141,7 @@ onMounted(load)
       <table v-else class="w-full text-sm">
         <thead>
           <tr class="bg-gray-50 dark:bg-gray-900 text-left text-gray-500 dark:text-gray-400">
+            <th class="px-4 py-3 w-10"><input type="checkbox" v-model="allSelected" /></th>
             <th class="px-4 py-3 font-medium">ID</th>
             <th class="px-4 py-3 font-medium">{{ $t('category.name') }}</th>
             <th class="px-4 py-3 font-medium">{{ $t('category.sort_order') }}</th>
@@ -119,6 +151,7 @@ onMounted(load)
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
           <tr v-for="cat in categories" :key="cat.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <td class="px-4 py-3"><input type="checkbox" :checked="selectedIds.includes(cat.id)" @change="toggleSelect(cat.id)" /></td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ cat.id }}</td>
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ cat.name }}</td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ cat.sort_order }}</td>
@@ -133,7 +166,7 @@ onMounted(load)
             </td>
           </tr>
           <tr v-if="categories.length === 0">
-            <td colspan="5" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
+            <td colspan="6" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
           </tr>
         </tbody>
       </table>
