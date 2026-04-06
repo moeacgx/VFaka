@@ -82,12 +82,20 @@ pub async fn logs(
     Ok(HttpResponse::Ok().json(logs))
 }
 
+pub async fn tiers(
+    db: web::Data<DatabaseConnection>,
+) -> AppResult<HttpResponse> {
+    let tiers = aff_service::list_tiers(db.get_ref()).await?;
+    Ok(HttpResponse::Ok().json(tiers))
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/aff")
             .route("/register", web::post().to(register))
             .route("/query", web::get().to(query))
             .route("/withdraw", web::post().to(withdraw))
-            .route("/logs", web::get().to(logs)),
+            .route("/logs", web::get().to(logs))
+            .route("/tiers", web::get().to(tiers)),
     );
 }

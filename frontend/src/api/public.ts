@@ -17,4 +17,5 @@ export const publicApi = {
   queryAff: (email: string) => request.get('/v1/aff/query', { params: { email } }),
   submitWithdrawal: (data: any) => request.post('/v1/aff/withdraw', data),
   getAffLogs: (email: string) => request.get('/v1/aff/logs', { params: { email } }),
+  getAffTiers: () => request.get('/v1/aff/tiers'),
 }

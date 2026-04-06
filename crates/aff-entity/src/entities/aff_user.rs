@@ -15,6 +15,7 @@ pub struct Model {
     pub total_withdrawn: f64,
     #[serde(skip_serializing)]
     pub withdraw_password_hash: Option<String>,
+    pub level: i32,
     pub created_at: DateTimeUtc,
 }
 

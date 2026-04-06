@@ -2,8 +2,8 @@ use sea_orm::*;
 
 use aff_common::error::{AppError, AppResult};
 use aff_common::id_gen::generate_aff_code;
-use aff_entity::dto::{AffQueryResponse, AffRegisterDto};
-use aff_entity::entities::{aff_log, aff_user, order, product};
+use aff_entity::dto::{AffNextLevel, AffQueryResponse, AffRegisterDto, CreateAffTierDto, UpdateAffTierDto};
+use aff_entity::entities::{aff_log, aff_tier, aff_user, order, product};
 
 pub async fn list_aff_users(db: &DatabaseConnection) -> AppResult<Vec<aff_user::Model>> {
     aff_user::Entity::find()
@@ -40,6 +40,7 @@ pub async fn register(
         total_earned: Set(0.0),
         total_withdrawn: Set(0.0),
         withdraw_password_hash: Set(Some(password_hash)),
+        level: Set(1),
         created_at: Set(now),
         ..Default::default()
     };
@@ -61,12 +62,37 @@ pub async fn query_by_email(
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound("AFF user not found".into()))?;
 
+    let tiers = list_tiers(db).await?;
+
+    let current_tier = tiers.iter().find(|t| t.level == user.level);
+    let (level_name, commission_rate) = match current_tier {
+        Some(t) => (t.name.clone(), t.commission_rate),
+        None => ("未知".to_string(), 0.05),
+    };
+
+    // Find next tier
+    let next_level = tiers
+        .iter()
+        .filter(|t| t.level > user.level)
+        .min_by_key(|t| t.level)
+        .map(|t| AffNextLevel {
+            level: t.level,
+            name: t.name.clone(),
+            commission_rate: t.commission_rate,
+            required_amount: t.required_amount,
+            remaining: (t.required_amount - user.total_earned).max(0.0),
+        });
+
     Ok(AffQueryResponse {
         email: user.email,
         aff_code: user.aff_code,
         balance: user.balance,
         total_earned: user.total_earned,
         total_withdrawn: user.total_withdrawn,
+        level: user.level,
+        level_name,
+        commission_rate,
+        next_level,
         created_at: user.created_at,
     })
 }
@@ -93,6 +119,60 @@ pub async fn get_user_by_code(
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
+/// Get the commission rate for a user based on their tier level.
+/// Falls back to the product-specific rate, then to the user's tier rate.
+async fn get_commission_rate(
+    db: &DatabaseConnection,
+    user: &aff_user::Model,
+    product_rate: Option<f64>,
+) -> f64 {
+    // Product-specific override takes precedence
+    if let Some(rate) = product_rate {
+        if rate > 0.0 {
+            return rate;
+        }
+    }
+
+    // Use tier-based rate
+    let tier = aff_tier::Entity::find()
+        .filter(aff_tier::Column::Level.eq(user.level))
+        .one(db)
+        .await
+        .ok()
+        .flatten();
+
+    match tier {
+        Some(t) => t.commission_rate,
+        None => 0.05, // fallback
+    }
+}
+
+/// Check if user should be upgraded to a higher tier based on total_earned.
+async fn maybe_upgrade_tier(
+    db: &DatabaseConnection,
+    user: &aff_user::Model,
+    new_total_earned: f64,
+) -> AppResult<Option<i32>> {
+    let tiers = list_tiers(db).await?;
+
+    // Find the highest tier the user qualifies for
+    let best_tier = tiers
+        .iter()
+        .filter(|t| new_total_earned >= t.required_amount)
+        .max_by_key(|t| t.level);
+
+    match best_tier {
+        Some(t) if t.level > user.level => {
+            tracing::info!(
+                "AFF user {} upgraded: level {} → {} ({})",
+                user.email, user.level, t.level, t.name
+            );
+            Ok(Some(t.level))
+        }
+        _ => Ok(None),
+    }
+}
+
 pub async fn process_commission(
     db: &DatabaseConnection,
     order: &order::Model,
@@ -117,9 +197,8 @@ pub async fn process_commission(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let rate = prod
-        .and_then(|p| p.aff_commission_rate)
-        .unwrap_or(0.0);
+    let product_rate = prod.and_then(|p| p.aff_commission_rate);
+    let rate = get_commission_rate(db, &aff_user, product_rate).await;
 
     if rate <= 0.0 {
         return Ok(());
@@ -145,13 +224,19 @@ pub async fn process_commission(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // Update aff_user balance
+    // Update aff_user balance + check tier upgrade
     let new_balance = aff_user.balance + commission;
     let new_earned = aff_user.total_earned + commission;
     let aff_email = aff_user.email.clone();
+
+    let new_level = maybe_upgrade_tier(db, &aff_user, new_earned).await?;
+
     let mut user_model: aff_user::ActiveModel = aff_user.into();
     user_model.balance = Set(new_balance);
     user_model.total_earned = Set(new_earned);
+    if let Some(level) = new_level {
+        user_model.level = Set(level);
+    }
     user_model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
 
     // Update order aff_commission
@@ -186,4 +271,88 @@ pub async fn get_logs(
         .all(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+// ===== Tier Management =====
+
+pub async fn list_tiers(db: &DatabaseConnection) -> AppResult<Vec<aff_tier::Model>> {
+    aff_tier::Entity::find()
+        .order_by_asc(aff_tier::Column::Level)
+        .all(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+pub async fn create_tier(
+    db: &DatabaseConnection,
+    dto: CreateAffTierDto,
+) -> AppResult<aff_tier::Model> {
+    let model = aff_tier::ActiveModel {
+        level: Set(dto.level),
+        name: Set(dto.name),
+        commission_rate: Set(dto.commission_rate),
+        required_amount: Set(dto.required_amount),
+        ..Default::default()
+    };
+    aff_tier::Entity::insert(model)
+        .exec_with_returning(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+pub async fn update_tier(
+    db: &DatabaseConnection,
+    level: i32,
+    dto: UpdateAffTierDto,
+) -> AppResult<aff_tier::Model> {
+    let tier = aff_tier::Entity::find()
+        .filter(aff_tier::Column::Level.eq(level))
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound(format!("Tier level {} not found", level)))?;
+
+    let mut model: aff_tier::ActiveModel = tier.into();
+    if let Some(name) = dto.name {
+        model.name = Set(name);
+    }
+    if let Some(rate) = dto.commission_rate {
+        model.commission_rate = Set(rate);
+    }
+    if let Some(amount) = dto.required_amount {
+        model.required_amount = Set(amount);
+    }
+
+    model
+        .update(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+pub async fn delete_tier(db: &DatabaseConnection, level: i32) -> AppResult<()> {
+    // Don't allow deleting level 1 (base tier)
+    if level <= 1 {
+        return Err(AppError::BadRequest("Cannot delete the base tier".into()));
+    }
+
+    // Downgrade users at this level to level 1
+    let users_at_level = aff_user::Entity::find()
+        .filter(aff_user::Column::Level.eq(level))
+        .all(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    for u in users_at_level {
+        let mut am: aff_user::ActiveModel = u.into();
+        am.level = Set(1);
+        am.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+
+    aff_tier::Entity::delete_many()
+        .filter(aff_tier::Column::Level.eq(level))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(())
 }
