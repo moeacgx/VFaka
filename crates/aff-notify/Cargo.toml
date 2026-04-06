@@ -1,0 +1,12 @@
+[package]
+name = "aff-notify"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { workspace = true }
+lettre = { version = "0.11", features = ["tokio1-native-tls", "builder", "smtp-transport"] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

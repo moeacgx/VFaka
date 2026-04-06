@@ -8,6 +8,7 @@ pub mod order;
 pub mod payment;
 pub mod product;
 pub mod settings;
+pub mod upload;
 pub mod withdrawal;
 
 use actix_web::web;
@@ -31,7 +32,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .configure(settings::configure)
                     .configure(withdrawal::configure)
                     .configure(aff::configure)
-                    .configure(admin_mgmt::configure),
+                    .configure(admin_mgmt::configure)
+                    .configure(upload::configure),
             ),
     );
 }
