@@ -3,10 +3,12 @@ import { computed, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from './composables/useTheme'
+import { useSiteInfo } from './composables/useSiteInfo'
 
 const route = useRoute()
 const { locale } = useI18n()
 const { themeMode, toggleTheme } = useTheme()
+const { siteInfo } = useSiteInfo()
 
 const isAdmin = computed(() => route.path.startsWith('/admin'))
 
@@ -84,7 +86,10 @@ const themeIcon = computed(() => {
     <!-- Public Header -->
     <header v-if="!isAdmin" class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
       <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-        <router-link to="/" class="text-xl font-semibold text-gray-900 dark:text-white hover:text-gray-900 dark:hover:text-white no-underline">AFF Card Shop</router-link>
+        <router-link to="/" class="flex items-center gap-2 text-xl font-semibold text-gray-900 dark:text-white hover:text-gray-900 dark:hover:text-white no-underline">
+          <img v-if="siteInfo.site_logo" :src="siteInfo.site_logo" class="h-7 w-7 object-contain rounded" alt="" />
+          {{ siteInfo.site_name || 'AFF Card Shop' }}
+        </router-link>
         <div class="flex items-center gap-4">
           <nav class="flex gap-4 text-sm text-gray-500 dark:text-gray-400">
             <router-link to="/" class="hover:text-gray-900 dark:hover:text-white transition-colors">{{ $t('nav.home') }}</router-link>

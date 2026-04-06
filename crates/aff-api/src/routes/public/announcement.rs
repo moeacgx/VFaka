@@ -33,6 +33,30 @@ pub async fn get_announcement(
     })))
 }
 
+pub async fn get_site_info(
+    db: web::Data<DatabaseConnection>,
+) -> AppResult<HttpResponse> {
+    let keys = [
+        "site_name",
+        "site_description",
+        "site_keywords",
+        "site_logo",
+        "contact_email",
+        "contact_telegram",
+    ];
+
+    let mut info = serde_json::Map::new();
+    for key in &keys {
+        let val = settings_service::get_setting(db.get_ref(), key)
+            .await?
+            .unwrap_or_default();
+        info.insert(key.to_string(), serde_json::Value::String(val));
+    }
+
+    Ok(HttpResponse::Ok().json(info))
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.route("/announcement", web::get().to(get_announcement));
+    cfg.route("/announcement", web::get().to(get_announcement))
+        .route("/site-info", web::get().to(get_site_info));
 }

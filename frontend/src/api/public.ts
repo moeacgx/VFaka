@@ -2,6 +2,9 @@ import request from './request'
 
 // Public API calls will be added here as features are implemented
 export const publicApi = {
+  // Site info
+  getSiteInfo: () => request.get('/v1/site-info'),
+
   // Products
   getCategories: () => request.get('/v1/categories'),
   getProducts: (params?: { category_id?: number }) => request.get('/v1/products', { params }),
