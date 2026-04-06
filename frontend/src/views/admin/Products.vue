@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
 
+const { t } = useI18n()
 const loading = ref(true)
 const products = ref<any[]>([])
 const categories = ref<any[]>([])
 const showForm = ref(false)
 const showRestock = ref(false)
 const editing = ref<any>(null)
+const uploadingImage = ref(false)
+const uploadingVideo = ref(false)
 
 const defaultForm = () => ({
   name: '', category_id: null as number | null, price: 0, description: '',
@@ -16,9 +20,50 @@ const defaultForm = () => ({
   post_action_type: 'none', post_action_value: '',
   aff_commission_rate: null as number | null,
   sort_order: 0, min_quantity: 1, max_quantity: 10, is_active: true,
+  image_url: null as string | null, video_url: null as string | null,
 })
 const form = ref(defaultForm())
 const restockForm = ref({ product_id: null as number | null, cards: '' })
+
+async function uploadFile(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const token = localStorage.getItem('admin_token')
+  const res = await fetch('/api/admin/upload', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData,
+  })
+  if (!res.ok) throw new Error('Upload failed')
+  const data = await res.json()
+  return data.url
+}
+
+async function handleImageUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  uploadingImage.value = true
+  try {
+    form.value.image_url = await uploadFile(file)
+  } catch (err: any) {
+    alert(err.message || t('common.operation_failed'))
+  } finally {
+    uploadingImage.value = false
+  }
+}
+
+async function handleVideoUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  uploadingVideo.value = true
+  try {
+    form.value.video_url = await uploadFile(file)
+  } catch (err: any) {
+    alert(err.message || t('common.operation_failed'))
+  } finally {
+    uploadingVideo.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -49,6 +94,7 @@ function openEdit(p: any) {
     post_action_type: p.post_action_type || 'none', post_action_value: p.post_action_value || '',
     aff_commission_rate: p.aff_commission_rate ?? null,
     sort_order: p.sort_order || 0, min_quantity: p.min_quantity || 1, max_quantity: p.max_quantity || 10, is_active: p.is_active !== false,
+    image_url: p.image_url || null, video_url: p.video_url || null,
   }
   showForm.value = true
 }
@@ -64,17 +110,17 @@ async function save() {
     showForm.value = false
     await load()
   } catch (e: any) {
-    alert(e.response?.data?.error || '操作失败')
+    alert(e.response?.data?.error || t('common.operation_failed'))
   }
 }
 
 async function remove(id: number) {
-  if (!confirm('确定删除该商品？')) return
+  if (!confirm(t('common.confirm_delete'))) return
   try {
     await adminApi.deleteProduct(id)
     await load()
   } catch (e: any) {
-    alert(e.response?.data?.error || '删除失败')
+    alert(e.response?.data?.error || t('common.operation_failed'))
   }
 }
 
@@ -85,7 +131,7 @@ function openRestock() {
 
 async function submitRestock() {
   if (!restockForm.value.product_id || !restockForm.value.cards.trim()) {
-    alert('请选择商品并输入卡密')
+    alert(t('product.select_product_cards'))
     return
   }
   try {
@@ -93,9 +139,9 @@ async function submitRestock() {
     await adminApi.restockProduct(restockForm.value.product_id, { cards: cards.join('\n') })
     showRestock.value = false
     await load()
-    alert(`成功导入 ${cards.length} 张卡密`)
+    alert(t('product.import_success', { count: cards.length }))
   } catch (e: any) {
-    alert(e.response?.data?.error || '补货失败')
+    alert(e.response?.data?.error || t('common.operation_failed'))
   }
 }
 
@@ -109,87 +155,111 @@ onMounted(load)
 <template>
   <div>
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-base font-medium text-gray-800">商品列表</h3>
+      <h3 class="text-base font-medium text-gray-800 dark:text-gray-100">{{ $t('product.product_list') }}</h3>
       <div class="flex gap-2">
-        <button @click="openRestock" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors">补货</button>
-        <button @click="openAdd" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">添加商品</button>
+        <button @click="openRestock" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors">{{ $t('product.restock') }}</button>
+        <button @click="openAdd" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">{{ $t('product.add_product') }}</button>
       </div>
     </div>
 
     <!-- Product form modal -->
     <div v-if="showForm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="showForm = false">
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-        <h3 class="text-base font-medium text-gray-800 mb-4">{{ editing ? '编辑商品' : '添加商品' }}</h3>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+        <h3 class="text-base font-medium text-gray-800 dark:text-gray-100 mb-4">{{ editing ? $t('product.edit_product') : $t('product.add_product') }}</h3>
         <form @submit.prevent="save" class="space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">名称</label>
-              <input v-model="form.name" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.name') }}</label>
+              <input v-model="form.name" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
-              <select v-model="form.category_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.category') }}</label>
+              <select v-model="form.category_id" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
                 <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">价格 (¥)</label>
-              <input v-model.number="form.price" type="number" step="0.01" min="0" required class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.price') }} (¥)</label>
+              <input v-model.number="form.price" type="number" step="0.01" min="0" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">排序</label>
-              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.sort_order') }}</label>
+              <input v-model.number="form.sort_order" type="number" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">最小购买数</label>
-              <input v-model.number="form.min_quantity" type="number" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.min_quantity') }}</label>
+              <input v-model.number="form.min_quantity" type="number" min="1" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">最大购买数</label>
-              <input v-model.number="form.max_quantity" type="number" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.max_quantity') }}</label>
+              <input v-model.number="form.max_quantity" type="number" min="1" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
-            <textarea v-model="form.description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.description') }}</label>
+            <textarea v-model="form.description" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+          </div>
+          <!-- Image upload -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.image') }}</label>
+            <div class="flex items-center gap-3">
+              <label class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-md cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                {{ uploadingImage ? $t('common.loading') : $t('product.upload_image') }}
+                <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" :disabled="uploadingImage" />
+              </label>
+              <span v-if="form.image_url" class="text-xs text-green-600">✓</span>
+            </div>
+            <img v-if="form.image_url" :src="form.image_url" class="mt-2 max-h-32 rounded border border-gray-200 dark:border-gray-700" />
+          </div>
+          <!-- Video upload -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.video') }}</label>
+            <div class="flex items-center gap-3">
+              <label class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-md cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                {{ uploadingVideo ? $t('common.loading') : $t('product.upload_video') }}
+                <input type="file" accept="video/*" class="hidden" @change="handleVideoUpload" :disabled="uploadingVideo" />
+              </label>
+              <span v-if="form.video_url" class="text-xs text-green-600">✓</span>
+            </div>
+            <video v-if="form.video_url" :src="form.video_url" controls class="mt-2 max-h-32 rounded border border-gray-200 dark:border-gray-700" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">支付方式</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ $t('product.payment_methods') }}</label>
             <div class="flex flex-wrap gap-4">
-              <label class="flex items-center gap-1.5 text-sm text-gray-700"><input v-model="form.pay_alipay" type="checkbox" /> 支付宝</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700"><input v-model="form.pay_wechat" type="checkbox" /> 微信</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700"><input v-model="form.pay_qqpay" type="checkbox" /> QQ钱包</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700"><input v-model="form.pay_usdt_trc20" type="checkbox" /> USDT-TRC20</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700"><input v-model="form.pay_usdt_erc20" type="checkbox" /> USDT-ERC20</label>
-              <label class="flex items-center gap-1.5 text-sm text-gray-700"><input v-model="form.pay_usdt_polygon" type="checkbox" /> USDT-Polygon</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_alipay" type="checkbox" /> {{ $t('product.alipay') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_wechat" type="checkbox" /> {{ $t('product.wxpay') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_qqpay" type="checkbox" /> {{ $t('product.qqpay') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_usdt_trc20" type="checkbox" /> {{ $t('product.usdt_trc20') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_usdt_erc20" type="checkbox" /> {{ $t('product.usdt_erc20') }}</label>
+              <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-200"><input v-model="form.pay_usdt_polygon" type="checkbox" /> {{ $t('product.usdt_polygon') }}</label>
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">售后动作类型</label>
-              <select v-model="form.post_action_type" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <option value="none">无</option>
-                <option value="webhook">Webhook</option>
-                <option value="command">命令</option>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.post_action_type') }}</label>
+              <select v-model="form.post_action_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                <option value="none">{{ $t('common.none') }}</option>
+                <option value="webhook">{{ $t('product.webhook') }}</option>
+                <option value="command">{{ $t('product.command') }}</option>
               </select>
             </div>
             <div v-if="form.post_action_type !== 'none'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">动作值</label>
-              <input v-model="form.post_action_value" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.post_action_value') }}</label>
+              <input v-model="form.post_action_value" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">推广佣金率覆盖 (%)</label>
-              <input v-model.number="form.aff_commission_rate" type="number" step="0.1" min="0" max="100" placeholder="留空使用全局设置" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.aff_rate') }} (%)</label>
+              <input v-model.number="form.aff_commission_rate" type="number" step="0.1" min="0" max="100" :placeholder="$t('product.aff_rate_hint')" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
             <div class="flex items-end">
-              <label class="flex items-center gap-2 text-sm text-gray-700 pb-2"><input v-model="form.is_active" type="checkbox" /> 启用商品</label>
+              <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 pb-2"><input v-model="form.is_active" type="checkbox" /> {{ $t('product.enable_product') }}</label>
             </div>
           </div>
           <div class="flex justify-end gap-2 pt-2">
-            <button type="button" @click="showForm = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">取消</button>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">保存</button>
+            <button type="button" @click="showForm = false" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">{{ $t('common.cancel') }}</button>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700">{{ $t('common.save') }}</button>
           </div>
         </form>
       </div>
@@ -197,63 +267,63 @@ onMounted(load)
 
     <!-- Restock modal -->
     <div v-if="showRestock" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="showRestock = false">
-      <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
-        <h3 class="text-base font-medium text-gray-800 mb-4">补货 - 批量导入卡密</h3>
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-lg p-6">
+        <h3 class="text-base font-medium text-gray-800 dark:text-gray-100 mb-4">{{ $t('product.restock_title') }}</h3>
         <form @submit.prevent="submitRestock" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">选择商品</label>
-            <select v-model="restockForm.product_id" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('card.product_select') }}</label>
+            <select v-model="restockForm.product_id" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
               <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">卡密内容（每行一个）</label>
-            <textarea v-model="restockForm.cards" rows="8" placeholder="每行输入一个卡密" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('card.import_hint') }}</label>
+            <textarea v-model="restockForm.cards" rows="8" :placeholder="$t('card.import_hint')" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
           </div>
           <div class="flex justify-end gap-2 pt-2">
-            <button type="button" @click="showRestock = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">取消</button>
-            <button type="submit" class="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">导入</button>
+            <button type="button" @click="showRestock = false" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">{{ $t('common.cancel') }}</button>
+            <button type="submit" class="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700">{{ $t('common.submit') }}</button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- Table -->
-    <div class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-      <div v-if="loading" class="p-8 text-center text-gray-400 text-sm">加载中...</div>
+    <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto">
+      <div v-if="loading" class="p-8 text-center text-gray-400 dark:text-gray-500 text-sm">{{ $t('common.loading') }}</div>
       <table v-else class="w-full text-sm">
         <thead>
-          <tr class="bg-gray-50 text-left text-gray-500">
+          <tr class="bg-gray-50 dark:bg-gray-900 text-left text-gray-500 dark:text-gray-400">
             <th class="px-4 py-3 font-medium">ID</th>
-            <th class="px-4 py-3 font-medium">名称</th>
-            <th class="px-4 py-3 font-medium">分类</th>
-            <th class="px-4 py-3 font-medium">价格</th>
-            <th class="px-4 py-3 font-medium">库存</th>
-            <th class="px-4 py-3 font-medium">已售</th>
-            <th class="px-4 py-3 font-medium">状态</th>
-            <th class="px-4 py-3 font-medium">操作</th>
+            <th class="px-4 py-3 font-medium">{{ $t('product.name') }}</th>
+            <th class="px-4 py-3 font-medium">{{ $t('product.category') }}</th>
+            <th class="px-4 py-3 font-medium">{{ $t('product.price') }}</th>
+            <th class="px-4 py-3 font-medium">{{ $t('product.stock') }}</th>
+            <th class="px-4 py-3 font-medium">{{ $t('product.sales') }}</th>
+            <th class="px-4 py-3 font-medium">{{ $t('common.status') }}</th>
+            <th class="px-4 py-3 font-medium">{{ $t('common.actions') }}</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-for="p in products" :key="p.id" class="hover:bg-gray-50">
-            <td class="px-4 py-3 text-gray-600">{{ p.id }}</td>
-            <td class="px-4 py-3 text-gray-800">{{ p.name }}</td>
-            <td class="px-4 py-3 text-gray-600">{{ getCategoryName(p.category_id) }}</td>
-            <td class="px-4 py-3 text-gray-800">¥{{ p.price?.toFixed(2) }}</td>
-            <td class="px-4 py-3" :class="(p.stock ?? 0) < 5 ? 'text-red-600 font-medium' : 'text-gray-600'">{{ p.stock ?? 0 }}</td>
-            <td class="px-4 py-3 text-gray-600">{{ p.sold ?? 0 }}</td>
+        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+          <tr v-for="p in products" :key="p.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.id }}</td>
+            <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ p.name }}</td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ getCategoryName(p.category_id) }}</td>
+            <td class="px-4 py-3 text-gray-800 dark:text-gray-100">¥{{ p.price?.toFixed(2) }}</td>
+            <td class="px-4 py-3" :class="(p.stock ?? 0) < 5 ? 'text-red-600 font-medium' : 'text-gray-600 dark:text-gray-300'">{{ p.stock ?? 0 }}</td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.sold ?? 0 }}</td>
             <td class="px-4 py-3">
               <span :class="p.is_active ? 'text-green-600 bg-green-50' : 'text-gray-500 bg-gray-100'" class="inline-block px-2 py-0.5 rounded text-xs font-medium">
-                {{ p.is_active ? '上架' : '下架' }}
+                {{ p.is_active ? $t('product.active') : $t('product.inactive') }}
               </span>
             </td>
             <td class="px-4 py-3 space-x-2">
-              <button @click="openEdit(p)" class="text-blue-600 hover:text-blue-800 text-xs">编辑</button>
-              <button @click="remove(p.id)" class="text-red-600 hover:text-red-800 text-xs">删除</button>
+              <button @click="openEdit(p)" class="text-blue-600 hover:text-blue-800 text-xs">{{ $t('common.edit') }}</button>
+              <button @click="remove(p.id)" class="text-red-600 hover:text-red-800 text-xs">{{ $t('common.delete') }}</button>
             </td>
           </tr>
           <tr v-if="products.length === 0">
-            <td colspan="8" class="px-4 py-8 text-center text-gray-400">暂无商品</td>
+            <td colspan="8" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
           </tr>
         </tbody>
       </table>
