@@ -1,8 +1,11 @@
 [server]
 host = "127.0.0.1"
 port = 8080
-# IMPORTANT: Set this to your actual domain in production for CORS security
+# IMPORTANT: Set this to your actual domain in production
 # public_base_url = "https://your-domain.com"
+# Explicit CORS allowed origins. If empty, defaults to public_base_url + local address.
+# In production, list your domain(s) here:
+# allowed_origins = ["https://your-domain.com", "https://www.your-domain.com"]
 
 [database]
 url = "sqlite:./aff_shop.db?mode=rwc"

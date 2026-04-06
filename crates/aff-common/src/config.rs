@@ -16,6 +16,8 @@ pub struct ServerConfig {
     pub port: u16,
     #[serde(default)]
     pub public_base_url: Option<String>,
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -65,5 +67,18 @@ impl AppConfig {
             .public_base_url
             .clone()
             .unwrap_or_else(|| format!("http://{}:{}", self.server.host, self.server.port))
+    }
+
+    /// Compute the effective list of allowed CORS origins.
+    /// Priority: explicit allowed_origins > public_base_url > local dev default.
+    pub fn get_allowed_origins(&self) -> Vec<String> {
+        if !self.server.allowed_origins.is_empty() {
+            return self.server.allowed_origins.clone();
+        }
+        let local = format!("http://{}:{}", self.server.host, self.server.port);
+        match &self.server.public_base_url {
+            Some(url) => vec![url.clone(), local],
+            None => vec![local, "http://localhost:5173".to_string()],
+        }
     }
 }

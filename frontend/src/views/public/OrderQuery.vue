@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { publicApi } from '../../api/public'
@@ -28,6 +28,7 @@ interface Order {
 const route = useRoute()
 
 const email = ref('')
+const emailInput = ref<HTMLInputElement | null>(null)
 const orderNoFromUrl = ref('')
 const orders = ref<Order[]>([])
 const loading = ref(false)
@@ -104,8 +105,8 @@ onMounted(() => {
   if (no && em) {
     querySingleOrder(no, em)
   } else if (no) {
-    // Payment redirect: order_no is known but email is not in the URL
     orderNoFromUrl.value = no
+    nextTick(() => emailInput.value?.focus())
   }
 })
 </script>
@@ -120,9 +121,10 @@ onMounted(() => {
       </p>
       <div class="flex gap-3">
         <input
+          ref="emailInput"
           v-model="email"
           type="email"
-          :placeholder="$t('order.query_hint')"
+          :placeholder="orderNoFromUrl ? $t('order.enter_email_hint') : $t('order.query_hint')"
           @keyup.enter="queryByEmail"
           class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
         />

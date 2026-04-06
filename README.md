@@ -73,17 +73,23 @@ cp config.toml config.local.toml
 [server]
 host = "127.0.0.1"
 port = 8080
+# Required for production — used for CORS and callback URLs
 # public_base_url = "https://your-domain.com"
+# Optional: explicit CORS origins (defaults to public_base_url + local)
+# allowed_origins = ["https://your-domain.com"]
 
 [database]
 url = "sqlite:./aff_shop.db?mode=rwc"
 
 [jwt]
+# MUST change before production — server will refuse to start with default secret
+# when public_base_url is set
 secret = "your-jwt-secret-change-this"
 expiration_hours = 24
 
 [admin]
 username = "admin"
+# If left as "admin123", a random password is generated on first run (check logs)
 password = "your-secure-password"
 ```
 

@@ -70,13 +70,24 @@ async fn init_default_admin(db: &DatabaseConnection, config: &AppConfig) {
 }
 
 fn check_security(config: &AppConfig) {
+    let is_production = config.server.public_base_url.is_some();
+
     if config.jwt.secret == DEFAULT_JWT_SECRET {
+        if is_production {
+            panic!(
+                "FATAL: Default JWT secret detected with public_base_url set. \
+                 This is not safe for production. Set a unique jwt.secret in \
+                 config.local.toml or via AFF_JWT_SECRET environment variable."
+            );
+        }
         tracing::warn!("==============================================");
-        tracing::warn!("  WARNING: Using default JWT secret!");
-        tracing::warn!("  This is insecure for production.");
-        tracing::warn!("  Set jwt.secret in config.toml or via");
-        tracing::warn!("  AFF_JWT_SECRET environment variable.");
+        tracing::warn!("  Using default JWT secret (dev mode only).");
+        tracing::warn!("  Set jwt.secret before going to production.");
         tracing::warn!("==============================================");
+    }
+
+    if config.jwt.secret.len() < 32 {
+        tracing::warn!("JWT secret is shorter than 32 characters — consider using a longer value");
     }
 
     if !config.security.allow_command_action {
@@ -84,6 +95,9 @@ fn check_security(config: &AppConfig) {
     } else {
         tracing::warn!("Post-pay command execution is ENABLED - ensure this is intended");
     }
+
+    let origins = config.get_allowed_origins();
+    tracing::info!("CORS allowed origins: {:?}", origins);
 }
 
 #[actix_web::main]
@@ -118,20 +132,14 @@ async fn main() -> std::io::Result<()> {
     aff_core::tasks::order_timeout::start_cleanup_task(Arc::new(db));
 
     actix_web::HttpServer::new(move || {
-        let cors = if let Some(ref base_url) = config_clone.server.public_base_url {
-            actix_cors::Cors::default()
-                .allowed_origin(base_url)
-                .allowed_origin(&format!("http://{}:{}", config_clone.server.host, config_clone.server.port))
-                .allow_any_method()
-                .allow_any_header()
-                .max_age(3600)
-        } else {
-            actix_cors::Cors::default()
-                .allow_any_origin()
-                .allow_any_method()
-                .allow_any_header()
-                .max_age(3600)
-        };
+        let origins = config_clone.get_allowed_origins();
+        let mut cors = actix_cors::Cors::default()
+            .allow_any_method()
+            .allow_any_header()
+            .max_age(3600);
+        for origin in &origins {
+            cors = cors.allowed_origin(origin);
+        }
 
         let mut app = actix_web::App::new()
             .wrap(cors)

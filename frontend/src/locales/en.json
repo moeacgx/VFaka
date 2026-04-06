@@ -183,6 +183,7 @@
     "aff_commission": "AFF Commission",
     "query_title": "Order Lookup",
     "enter_email_for_order": "Enter the email used for your purchase to view the order",
+    "enter_email_hint": "Enter the email used for your purchase",
     "query_hint": "Enter your email to query orders",
     "query_button": "Query",
     "no_orders": "No orders found",
