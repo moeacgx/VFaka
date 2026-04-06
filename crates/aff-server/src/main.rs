@@ -4,6 +4,8 @@ use sea_orm_migration::MigratorTrait;
 use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+const DEFAULT_JWT_SECRET: &str = "change-me-in-production-use-a-long-random-string";
+
 async fn init_database(config: &AppConfig) -> DatabaseConnection {
     let db = Database::connect(&config.database.url)
         .await
@@ -28,7 +30,25 @@ async fn init_default_admin(db: &DatabaseConnection, config: &AppConfig) {
         .expect("Failed to query admin");
 
     if existing.is_none() {
-        let password_hash = bcrypt::hash(&config.admin.password, bcrypt::DEFAULT_COST)
+        // Generate random password if using default
+        let password = if config.admin.password == "admin123" {
+            use rand::Rng;
+            let random_pass: String = rand::thread_rng()
+                .sample_iter(&rand::distributions::Alphanumeric)
+                .take(16)
+                .map(char::from)
+                .collect();
+            tracing::warn!("==============================================");
+            tracing::warn!("  DEFAULT ADMIN PASSWORD DETECTED");
+            tracing::warn!("  Generated random password: {}", random_pass);
+            tracing::warn!("  Please save this password now!");
+            tracing::warn!("==============================================");
+            random_pass
+        } else {
+            config.admin.password.clone()
+        };
+
+        let password_hash = bcrypt::hash(&password, bcrypt::DEFAULT_COST)
             .expect("Failed to hash password");
 
         let new_admin = admin::ActiveModel {
@@ -49,6 +69,23 @@ async fn init_default_admin(db: &DatabaseConnection, config: &AppConfig) {
     }
 }
 
+fn check_security(config: &AppConfig) {
+    if config.jwt.secret == DEFAULT_JWT_SECRET {
+        tracing::warn!("==============================================");
+        tracing::warn!("  WARNING: Using default JWT secret!");
+        tracing::warn!("  This is insecure for production.");
+        tracing::warn!("  Set jwt.secret in config.toml or via");
+        tracing::warn!("  AFF_JWT_SECRET environment variable.");
+        tracing::warn!("==============================================");
+    }
+
+    if !config.security.allow_command_action {
+        tracing::info!("Post-pay command execution is DISABLED (default)");
+    } else {
+        tracing::warn!("Post-pay command execution is ENABLED - ensure this is intended");
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::registry()
@@ -60,6 +97,8 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("Loading configuration...");
     let config = AppConfig::load().expect("Failed to load configuration");
+
+    check_security(&config);
 
     tracing::info!("Initializing database...");
     let db = init_database(&config).await;

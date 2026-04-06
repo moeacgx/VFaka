@@ -116,8 +116,8 @@ pub async fn create_order(
     )
     .await?;
 
-    // 10. Lock cards
-    let _locked_cards = card_service::lock_cards(db.get_ref(), dto.product_id, dto.quantity).await?;
+    // 10. Lock cards (bind to order)
+    let _locked_cards = card_service::lock_cards(db.get_ref(), dto.product_id, dto.quantity, order.id).await?;
 
     // 11. Load payment config from DB
     let configs = payment_config_service::list_configs(db.get_ref()).await?;
@@ -131,10 +131,7 @@ pub async fn create_order(
     // 12. Create payment provider and submit
     let provider = create_provider(channel, &pay_config.config_json)?;
 
-    let base_url = format!(
-        "http://{}:{}",
-        config.server.host, config.server.port
-    );
+    let base_url = config.get_public_base_url();
 
     let notify_url = match channel {
         "epay" => format!("{}/api/v1/pay/epay/notify", base_url),

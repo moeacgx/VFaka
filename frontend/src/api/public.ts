@@ -4,6 +4,7 @@ import request from './request'
 export const publicApi = {
   // Site info
   getSiteInfo: () => request.get('/v1/site-info'),
+  getPublicConfig: () => request.get('/v1/config'),
 
   // Products
   getCategories: () => request.get('/v1/categories'),

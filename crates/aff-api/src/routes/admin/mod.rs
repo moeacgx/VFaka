@@ -12,14 +12,22 @@ pub mod upload;
 pub mod withdrawal;
 
 use actix_web::web;
-use crate::middleware::auth::JwtAuth;
+use crate::middleware::auth::{JwtAuth, SuperAdminAuth};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/admin")
             // Auth routes (no JWT required)
             .configure(auth::configure)
-            // All other routes require JWT
+            // Super admin routes (admin management, settings, payment config)
+            .service(
+                web::scope("")
+                    .wrap(SuperAdminAuth)
+                    .configure(settings::configure)
+                    .configure(payment::configure)
+                    .configure(admin_mgmt::configure),
+            )
+            // Regular admin routes (require JWT but any role)
             .service(
                 web::scope("")
                     .wrap(JwtAuth)
@@ -28,11 +36,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .configure(product::configure)
                     .configure(card::configure)
                     .configure(order::configure)
-                    .configure(payment::configure)
-                    .configure(settings::configure)
                     .configure(withdrawal::configure)
                     .configure(aff::configure)
-                    .configure(admin_mgmt::configure)
                     .configure(upload::configure),
             ),
     );

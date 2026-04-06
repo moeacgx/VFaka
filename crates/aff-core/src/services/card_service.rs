@@ -119,6 +119,7 @@ pub async fn lock_cards(
     db: &DatabaseConnection,
     product_id: i32,
     quantity: i32,
+    order_id: i32,
 ) -> AppResult<Vec<card::Model>> {
     let cards = card::Entity::find()
         .filter(card::Column::ProductId.eq(product_id))
@@ -141,17 +142,16 @@ pub async fn lock_cards(
 
     card::Entity::update_many()
         .col_expr(card::Column::Status, Expr::value("locked"))
-        .filter(card::Column::Id.is_in(card_ids))
+        .col_expr(card::Column::OrderId, Expr::value(Some(order_id)))
+        .filter(card::Column::Id.is_in(card_ids.clone()))
         .exec(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     // Re-fetch the updated cards
     let updated_cards = card::Entity::find()
-        .filter(card::Column::ProductId.eq(product_id))
-        .filter(card::Column::Status.eq("locked"))
+        .filter(card::Column::Id.is_in(card_ids))
         .order_by_asc(card::Column::Id)
-        .limit(quantity as u64)
         .all(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;

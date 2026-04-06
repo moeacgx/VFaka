@@ -56,7 +56,16 @@ pub async fn get_site_info(
     Ok(HttpResponse::Ok().json(info))
 }
 
+pub async fn get_public_config(
+    config: web::Data<aff_common::config::AppConfig>,
+) -> AppResult<HttpResponse> {
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "allow_command_action": config.security.allow_command_action,
+    })))
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/announcement", web::get().to(get_announcement))
-        .route("/site-info", web::get().to(get_site_info));
+        .route("/site-info", web::get().to(get_site_info))
+        .route("/config", web::get().to(get_public_config));
 }

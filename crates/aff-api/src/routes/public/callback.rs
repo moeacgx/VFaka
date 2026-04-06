@@ -53,19 +53,23 @@ async fn load_smtp_config(db: &DatabaseConnection) -> aff_notify::email::SmtpCon
 async fn process_paid_order(
     db: &sea_orm::DatabaseConnection,
     order_no: &str,
+    config: &AppConfig,
 ) -> AppResult<()> {
     // Re-fetch order after status update
     let order = order_service::get_order_by_no(db, order_no)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Order {} not found", order_no)))?;
 
-    // Deliver cards: find locked cards for this product
-    let locked_cards = card_service::list_cards(db, Some(order.product_id), Some("locked".to_string())).await?;
-    let card_ids: Vec<i32> = locked_cards
-        .iter()
-        .take(order.quantity as usize)
-        .map(|c| c.id)
-        .collect();
+    // Deliver cards: find locked cards bound to this order
+    use sea_orm::ColumnTrait;
+    use sea_orm::QueryFilter;
+    let locked_cards = card::Entity::find()
+        .filter(card::Column::OrderId.eq(order.id))
+        .filter(card::Column::Status.eq("locked"))
+        .all(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let card_ids: Vec<i32> = locked_cards.iter().map(|c| c.id).collect();
 
     if card_ids.len() < order.quantity as usize {
         warn!(
@@ -110,7 +114,7 @@ async fn process_paid_order(
             &product_model.post_pay_action_value,
         ) {
             if !action_type.is_empty() && !action_value.is_empty() {
-                match post_action::execute_post_action(action_type, action_value, &order).await {
+                match post_action::execute_post_action(action_type, action_value, &order, Some(config)).await {
                     Ok(result) => {
                         let _ = order_service::set_post_action_result(db, order_no, &result).await;
                     }
@@ -185,6 +189,7 @@ async fn process_paid_order(
 
 pub async fn epay_notify(
     db: web::Data<DatabaseConnection>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
 ) -> AppResult<HttpResponse> {
     let query_string = req.query_string().to_string();
@@ -219,10 +224,22 @@ pub async fn epay_notify(
             AppError::NotFound(format!("Order {} not found", cb_data.order_no))
         })?;
 
-    // Skip if already processed
+    // Skip if already processed (idempotent)
     if order.status != "pending" {
         info!(order_no = %cb_data.order_no, status = %order.status, "Order already processed, skipping");
         return Ok(HttpResponse::Ok().body("success"));
+    }
+
+    // Amount validation (tolerance ±0.01)
+    let amount_diff = (cb_data.amount - order.total_amount).abs();
+    if amount_diff > 0.01 {
+        error!(
+            order_no = %cb_data.order_no,
+            expected = order.total_amount,
+            received = cb_data.amount,
+            "Epay callback amount mismatch"
+        );
+        return Ok(HttpResponse::BadRequest().body("amount mismatch"));
     }
 
     // Update to paid
@@ -233,8 +250,10 @@ pub async fn epay_notify(
     }
 
     // Process paid order (deliver cards, post action, AFF)
-    if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no).await {
+    // Only ACK success if delivery succeeds; otherwise return 500 for retry
+    if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no, config.get_ref()).await {
         error!(order_no = %cb_data.order_no, "Failed to process paid order: {}", e);
+        return Ok(HttpResponse::InternalServerError().body("delivery failed"));
     }
 
     Ok(HttpResponse::Ok()
@@ -244,6 +263,7 @@ pub async fn epay_notify(
 
 pub async fn tokenpay_notify(
     db: web::Data<DatabaseConnection>,
+    config: web::Data<AppConfig>,
     req: HttpRequest,
     body: web::Bytes,
 ) -> AppResult<HttpResponse> {
@@ -291,6 +311,18 @@ pub async fn tokenpay_notify(
         return Ok(HttpResponse::Ok().body("ok"));
     }
 
+    // Amount validation (tolerance ±0.01)
+    let amount_diff = (cb_data.amount - order.total_amount).abs();
+    if amount_diff > 0.01 {
+        error!(
+            order_no = %cb_data.order_no,
+            expected = order.total_amount,
+            received = cb_data.amount,
+            "TokenPay callback amount mismatch"
+        );
+        return Ok(HttpResponse::BadRequest().body("amount mismatch"));
+    }
+
     // Update to paid
     order_service::update_order_status(db.get_ref(), &cb_data.order_no, "paid").await?;
     if !cb_data.trade_no.is_empty() {
@@ -298,9 +330,10 @@ pub async fn tokenpay_notify(
             .await?;
     }
 
-    // Process paid order
-    if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no).await {
+    // Process paid order - only ACK on success
+    if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no, config.get_ref()).await {
         error!(order_no = %cb_data.order_no, "Failed to process paid order: {}", e);
+        return Ok(HttpResponse::InternalServerError().body("delivery failed"));
     }
 
     Ok(HttpResponse::Ok()
@@ -322,10 +355,8 @@ pub async fn epay_return(
         })
         .unwrap_or_default();
 
-    let redirect_url = format!(
-        "http://{}:{}/order/{}",
-        config.server.host, config.server.port, order_no
-    );
+    let base_url = config.get_public_base_url();
+    let redirect_url = format!("{}/order?no={}", base_url, order_no);
 
     HttpResponse::Found()
         .append_header(("Location", redirect_url))

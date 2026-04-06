@@ -19,9 +19,46 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     );
 }
 
+fn mask_sensitive_value(value: &str) -> String {
+    if value.len() <= 6 {
+        "*".repeat(value.len())
+    } else {
+        format!("{}***{}", &value[..3], &value[value.len()-3..])
+    }
+}
+
+fn mask_config_json(json_str: &str) -> String {
+    let sensitive_keys = ["key", "secret", "api_key", "api_secret", "merchant_key", "password", "token"];
+    if let Ok(mut obj) = serde_json::from_str::<serde_json::Value>(json_str) {
+        if let Some(map) = obj.as_object_mut() {
+            for (k, v) in map.iter_mut() {
+                let k_lower = k.to_lowercase();
+                if sensitive_keys.iter().any(|sk| k_lower.contains(sk)) {
+                    if let Some(s) = v.as_str() {
+                        *v = serde_json::Value::String(mask_sensitive_value(s));
+                    }
+                }
+            }
+        }
+        serde_json::to_string(&obj).unwrap_or_else(|_| json_str.to_string())
+    } else {
+        json_str.to_string()
+    }
+}
+
 async fn list(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {
     let configs = payment_config_service::list_configs(&db).await?;
-    Ok(HttpResponse::Ok().json(configs))
+    let masked: Vec<serde_json::Value> = configs.iter().map(|c| {
+        serde_json::json!({
+            "id": c.id,
+            "channel": c.channel,
+            "config_json": mask_config_json(&c.config_json),
+            "is_active": c.is_active,
+            "created_at": c.created_at,
+            "updated_at": c.updated_at,
+        })
+    }).collect();
+    Ok(HttpResponse::Ok().json(masked))
 }
 
 async fn update(

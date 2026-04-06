@@ -66,3 +66,6 @@ async-trait = "0.1"
 # File upload
 actix-multipart = "0.7"
 mime_guess = "2"
+
+# Rate limiting
+actix-governor = "0.8"

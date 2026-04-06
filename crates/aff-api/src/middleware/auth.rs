@@ -24,12 +24,35 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(JwtAuthMiddleware {
             service: Rc::new(service),
+            require_super_admin: false,
+        }))
+    }
+}
+
+pub struct SuperAdminAuth;
+
+impl<S, B> Transform<S, ServiceRequest> for SuperAdminAuth
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    B: 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Transform = JwtAuthMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ready(Ok(JwtAuthMiddleware {
+            service: Rc::new(service),
+            require_super_admin: true,
         }))
     }
 }
 
 pub struct JwtAuthMiddleware<S> {
     service: Rc<S>,
+    require_super_admin: bool,
 }
 
 impl<S, B> Service<ServiceRequest> for JwtAuthMiddleware<S>
@@ -45,6 +68,7 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let service = Rc::clone(&self.service);
+        let require_super_admin = self.require_super_admin;
 
         Box::pin(async move {
             let config = req
@@ -55,6 +79,10 @@ where
                 .ok_or_else(|| AppError::Unauthorized("Missing authorization token".to_string()))?;
 
             let claims = admin_service::verify_token(&token, &config.jwt.secret)?;
+
+            if require_super_admin && claims.role != "super_admin" {
+                return Err(AppError::Forbidden("Super admin access required".to_string()).into());
+            }
 
             req.extensions_mut().insert(claims);
 

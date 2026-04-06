@@ -1,6 +1,7 @@
 [server]
 host = "127.0.0.1"
 port = 8080
+# public_base_url = "https://your-domain.com"
 
 [database]
 url = "sqlite:./aff_shop.db?mode=rwc"
@@ -12,3 +13,6 @@ expiration_hours = 24
 [admin]
 username = "admin"
 password = "admin123"
+
+[security]
+allow_command_action = false

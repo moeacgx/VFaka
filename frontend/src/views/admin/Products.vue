@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
+import { publicApi } from '../../api/public'
 
 const { t } = useI18n()
 const loading = ref(true)
@@ -13,6 +14,7 @@ const editing = ref<any>(null)
 const uploadingImage = ref(false)
 const uploadingVideo = ref(false)
 const selectedIds = ref<number[]>([])
+const allowCommandAction = ref(false)
 
 const allSelected = computed({
   get: () => products.value.length > 0 && selectedIds.value.length === products.value.length,
@@ -76,9 +78,14 @@ async function handleVideoUpload(e: Event) {
 async function load() {
   loading.value = true
   try {
-    const [pRes, cRes] = await Promise.all([adminApi.getProducts(), adminApi.getCategories()])
+    const [pRes, cRes, cfgRes] = await Promise.all([
+      adminApi.getProducts(),
+      adminApi.getCategories(),
+      publicApi.getPublicConfig().catch(() => ({ data: {} })),
+    ])
     products.value = pRes.data || []
     categories.value = cRes.data || []
+    allowCommandAction.value = cfgRes.data?.allow_command_action ?? false
     selectedIds.value = []
   } catch (e) {
     console.error(e)
@@ -263,7 +270,7 @@ onMounted(load)
               <select v-model="form.post_pay_action_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
                 <option value="none">{{ $t('common.none') }}</option>
                 <option value="webhook">{{ $t('product.webhook') }}</option>
-                <option value="command">{{ $t('product.command') }}</option>
+                <option v-if="allowCommandAction" value="command">{{ $t('product.command') }}</option>
               </select>
             </div>
             <div v-if="form.post_pay_action_type !== 'none'">

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use aff_common::config::AppConfig;
 use aff_common::error::{AppError, AppResult};
 use aff_entity::entities::order;
 use tracing::{info, warn};
@@ -8,10 +9,21 @@ pub async fn execute_post_action(
     action_type: &str,
     action_value: &str,
     order: &order::Model,
+    config: Option<&AppConfig>,
 ) -> AppResult<String> {
     match action_type {
         "webhook" => execute_webhook(action_value, order).await,
-        "command" => execute_command(action_value, order).await,
+        "command" => {
+            let allowed = config
+                .map(|c| c.security.allow_command_action)
+                .unwrap_or(false);
+            if !allowed {
+                return Err(AppError::Forbidden(
+                    "Command execution is disabled. Set security.allow_command_action=true to enable.".to_string()
+                ));
+            }
+            execute_command(action_value, order).await
+        }
         _ => Err(AppError::BadRequest(format!(
             "Unknown post_pay_action_type: {}",
             action_type
