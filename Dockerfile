@@ -1,9 +1,10 @@
 FROM node:20-slim AS frontend-build
+RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app/frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
-RUN npm run build
+RUN pnpm run build
 
 FROM rust:1.82-slim AS backend-build
 WORKDIR /app

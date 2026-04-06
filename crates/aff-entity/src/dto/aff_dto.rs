@@ -24,5 +24,33 @@ pub struct AffQueryResponse {
     pub balance: f64,
     pub total_earned: f64,
     pub total_withdrawn: f64,
+    pub level: i32,
+    pub level_name: String,
+    pub commission_rate: f64,
+    pub next_level: Option<AffNextLevel>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AffNextLevel {
+    pub level: i32,
+    pub name: String,
+    pub commission_rate: f64,
+    pub required_amount: f64,
+    pub remaining: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateAffTierDto {
+    pub level: i32,
+    pub name: String,
+    pub commission_rate: f64,
+    pub required_amount: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAffTierDto {
+    pub name: Option<String>,
+    pub commission_rate: Option<f64>,
+    pub required_amount: Option<f64>,
 }

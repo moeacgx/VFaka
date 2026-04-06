@@ -15,13 +15,13 @@
 
 ### 环境要求
 - Rust 1.75+
-- Node.js 18+
+- Node.js 18+ & pnpm
 
 ### 启动
 
 ```bash
 # 1. 构建前端
-cd frontend && npm install && npm run build && cd ..
+cd frontend && pnpm install && pnpm run build && cd ..
 
 # 2. 运行服务器
 cargo run
@@ -120,7 +120,7 @@ AFF/
 cargo watch -x run
 
 # 前端开发
-cd frontend && npm run dev
+cd frontend && pnpm dev
 
 # 运行测试
 cargo test
