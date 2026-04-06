@@ -324,14 +324,18 @@ dependencies = [
 name = "aff-server"
 version = "0.1.0"
 dependencies = [
+ "actix-cors",
  "actix-rt",
  "actix-web",
  "aff-api",
  "aff-common",
  "aff-core",
  "aff-entity",
+ "bcrypt",
+ "chrono",
  "sea-orm",
  "sea-orm-migration",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-actix-web",
