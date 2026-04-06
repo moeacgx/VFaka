@@ -90,7 +90,7 @@ async function submitRestock() {
   }
   try {
     const cards = restockForm.value.cards.split('\n').map(s => s.trim()).filter(Boolean)
-    await adminApi.restockProduct(restockForm.value.product_id, { cards })
+    await adminApi.restockProduct(restockForm.value.product_id, { cards: cards.join('\n') })
     showRestock.value = false
     await load()
     alert(`成功导入 ${cards.length} 张卡密`)

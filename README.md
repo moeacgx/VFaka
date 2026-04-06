@@ -7,7 +7,8 @@
 - **自动发卡**: 用户购买后自动发放卡密，邮箱查询订单
 - **管理后台**: 商品/分类/卡密/订单 CRUD，批量导入补货，仪表盘统计
 - **双支付通道**: 易支付 (支付宝/微信/QQ) + TokenPay (USDT/TRX 加密货币)
-- **AFF 推广系统**: 邀请返佣，邮箱查询余额，多链 USDT/USDC 提现
+- **AFF 推广系统**: 邀请返佣，多级等级体系 (青铜→白银→黄金→钻石)，自动升级
+- **多链提现**: 支持 USDT/USDC 在 Tron、Polygon、Base 链提现
 - **支付后触发**: 支持 Webhook 回调和 Shell 命令执行
 - **模块化架构**: Cargo Workspace 6 个 crate，清晰分层
 
@@ -95,23 +96,47 @@ AFF/
 | GET | `/categories` | 商品分类列表 |
 | GET | `/products` | 商品列表 |
 | POST | `/orders` | 创建订单 |
-| GET | `/orders/{no}?email=` | 查询订单 |
-| POST | `/aff/register` | 注册 AFF |
-| GET | `/aff/query?email=` | 查询佣金 |
+| GET | `/orders/query?email=` | 按邮箱查询订单列表 |
+| GET | `/orders/{order_no}?email=` | 查询单个订单详情 |
+| POST | `/aff/register` | 注册 AFF 推广账号 |
+| GET | `/aff/query?email=` | 查询佣金/等级信息 |
+| GET | `/aff/tiers` | 查看等级体系 |
+| GET | `/aff/logs?email=` | 查询佣金记录 |
 | POST | `/aff/withdraw` | 申请提现 |
 
 ### 管理 `/api/admin`
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/auth/login` | 登录 |
-| GET | `/dashboard` | 仪表盘 |
+| GET | `/dashboard` | 仪表盘统计 |
 | CRUD | `/categories` | 分类管理 |
 | CRUD | `/products` | 商品管理 |
-| CRUD | `/cards` | 卡密管理 |
+| GET/POST/DELETE | `/cards` | 卡密管理 (POST `/cards/import` 批量导入) |
 | GET | `/orders` | 订单管理 |
-| PUT | `/payment-configs/{ch}` | 支付配置 |
-| GET/PUT | `/withdrawals/{id}/*` | 提现审批 |
+| GET/PUT | `/payment-configs` | 支付通道配置 |
+| GET | `/withdrawals` | 提现审批 |
+| PUT | `/withdrawals/{id}/approve` | 通过提现 |
+| PUT | `/withdrawals/{id}/reject` | 拒绝提现 |
 | GET/PUT | `/settings` | 系统设置 |
+| GET | `/admins` | 管理员列表 |
+| GET | `/aff/users` | AFF 用户列表 |
+| CRUD | `/aff/tiers` | AFF 等级管理 |
+
+## AFF 推广等级体系
+
+系统内置 4 级推广等级，管理员可自定义增减：
+
+| 等级 | 名称 | 返佣比例 | 升级门槛 |
+|------|------|----------|----------|
+| L1 | 青铜 | 5% | ¥0 (默认) |
+| L2 | 白银 | 10% | 累计邀请 ≥¥100 |
+| L3 | 黄金 | 15% | 累计邀请 ≥¥500 |
+| L4 | 钻石 | 20% | 累计邀请 ≥¥1000 |
+
+- 用户注册后默认 L1，邀请订单成交后自动计算佣金并检查升级
+- 商品可单独设置返佣比例，优先于等级比例
+- 管理员可在后台自由增删等级、调整比例和门槛
+- 提现支持 USDT/USDC，可选 Tron/Polygon/Base 链
 
 ## 开发
 

@@ -50,7 +50,7 @@ async function submitImport() {
   }
   try {
     const cardsList = importForm.value.cards.split('\n').map(s => s.trim()).filter(Boolean)
-    await adminApi.importCards({ product_id: importForm.value.product_id, cards: cardsList })
+    await adminApi.importCards({ product_id: importForm.value.product_id, cards: cardsList.join('\n') })
     showImport.value = false
     await load()
     alert(`成功导入 ${cardsList.length} 张卡密`)
