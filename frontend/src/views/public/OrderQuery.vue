@@ -28,6 +28,7 @@ interface Order {
 const route = useRoute()
 
 const email = ref('')
+const orderNoFromUrl = ref('')
 const orders = ref<Order[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -64,8 +65,14 @@ async function queryByEmail() {
   searched.value = true
 
   try {
-    const res = await publicApi.queryOrders(email.value.trim())
-    orders.value = res.data
+    // If we have an order_no from URL, query that specific order
+    if (orderNoFromUrl.value) {
+      const res = await publicApi.getOrder(orderNoFromUrl.value, email.value.trim())
+      orders.value = [res.data]
+    } else {
+      const res = await publicApi.queryOrders(email.value.trim())
+      orders.value = res.data
+    }
   } catch (e: any) {
     error.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
     orders.value = []
@@ -96,6 +103,9 @@ onMounted(() => {
   const em = route.query.email as string | undefined
   if (no && em) {
     querySingleOrder(no, em)
+  } else if (no) {
+    // Payment redirect: order_no is known but email is not in the URL
+    orderNoFromUrl.value = no
   }
 })
 </script>
@@ -105,6 +115,9 @@ onMounted(() => {
     <!-- Search -->
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none p-6 mb-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('order.query_title') }}</h2>
+      <p v-if="orderNoFromUrl" class="text-sm text-blue-600 dark:text-blue-400 mb-3">
+        {{ $t('order.enter_email_for_order') }} <span class="font-mono">{{ orderNoFromUrl }}</span>
+      </p>
       <div class="flex gap-3">
         <input
           v-model="email"

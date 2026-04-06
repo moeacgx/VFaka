@@ -192,6 +192,20 @@ pub async fn process_commission(
         return Ok(());
     }
 
+    // Idempotency: skip if commission already recorded for this order
+    let existing_log = aff_log::Entity::find()
+        .filter(aff_log::Column::OrderId.eq(order.id))
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    if existing_log.is_some() {
+        tracing::info!(
+            order_id = order.id,
+            "Commission already recorded for this order, skipping"
+        );
+        return Ok(());
+    }
+
     let prod = product::Entity::find_by_id(order.product_id)
         .one(db)
         .await

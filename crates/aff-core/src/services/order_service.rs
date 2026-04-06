@@ -89,6 +89,30 @@ pub async fn update_order_status(
     Ok(())
 }
 
+/// Atomically claim an order for processing via CAS.
+/// Returns true if this caller won the claim, false if another thread already claimed it.
+pub async fn claim_order_for_processing(
+    db: &DatabaseConnection,
+    order_no: &str,
+) -> AppResult<bool> {
+    use sea_orm::sea_query::Expr;
+
+    let result = order::Entity::update_many()
+        .col_expr(order::Column::Status, Expr::value("processing"))
+        .col_expr(order::Column::UpdatedAt, Expr::value(chrono::Utc::now()))
+        .filter(order::Column::OrderNo.eq(order_no))
+        .filter(
+            order::Column::Status
+                .eq("paid")
+                .or(order::Column::Status.eq("pending")),
+        )
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(result.rows_affected == 1)
+}
+
 pub async fn update_order_trade_no(
     db: &DatabaseConnection,
     order_no: &str,

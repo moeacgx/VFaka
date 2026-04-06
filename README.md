@@ -60,7 +60,7 @@ cargo run
 
 - 前台商城: `http://127.0.0.1:8080/`
 - 管理后台: `http://127.0.0.1:8080/admin`
-- 默认管理员: `admin` / `admin123`
+- 默认管理员: `admin` / 首次启动时控制台输出的随机密码 (请及时保存)
 
 ### 配置
 
@@ -73,6 +73,7 @@ cp config.toml config.local.toml
 [server]
 host = "127.0.0.1"
 port = 8080
+# public_base_url = "https://your-domain.com"
 
 [database]
 url = "sqlite:./aff_shop.db?mode=rwc"
@@ -83,7 +84,7 @@ expiration_hours = 24
 
 [admin]
 username = "admin"
-password = "admin123"
+password = "your-secure-password"
 ```
 
 ## 支付通道配置

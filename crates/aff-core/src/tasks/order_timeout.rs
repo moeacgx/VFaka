@@ -4,13 +4,32 @@ use std::sync::Arc;
 use aff_entity::entities::{card, order};
 
 /// Cleanup expired pending orders (15 min timeout).
-/// Releases locked cards back to available.
+/// Also recover orders stuck in "processing" for >5 min (rollback to "paid").
+/// Releases locked cards back to available for expired orders.
 pub async fn cleanup_expired_orders(db: &DatabaseConnection) {
-    let cutoff = chrono::Utc::now() - chrono::Duration::minutes(15);
+    let pending_cutoff = chrono::Utc::now() - chrono::Duration::minutes(15);
+    let processing_cutoff = chrono::Utc::now() - chrono::Duration::minutes(5);
+
+    // Recover stuck "processing" orders back to "paid"
+    let stuck = order::Entity::find()
+        .filter(order::Column::Status.eq("processing"))
+        .filter(order::Column::UpdatedAt.lt(processing_cutoff))
+        .all(db)
+        .await;
+
+    if let Ok(stuck_orders) = stuck {
+        for o in &stuck_orders {
+            let mut am: order::ActiveModel = o.clone().into();
+            am.status = Set("paid".to_string());
+            am.updated_at = Set(chrono::Utc::now());
+            let _ = am.update(db).await;
+            tracing::warn!("Recovered stuck processing order {} back to paid", o.order_no);
+        }
+    }
 
     let expired = order::Entity::find()
         .filter(order::Column::Status.eq("pending"))
-        .filter(order::Column::CreatedAt.lt(cutoff))
+        .filter(order::Column::CreatedAt.lt(pending_cutoff))
         .all(db)
         .await;
 

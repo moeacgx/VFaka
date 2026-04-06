@@ -55,7 +55,47 @@ async fn process_paid_order(
     order_no: &str,
     config: &AppConfig,
 ) -> AppResult<()> {
-    // Re-fetch order after status update
+    // CAS claim: atomically set status to "processing"
+    // If another thread already claimed, return Ok (idempotent)
+    let claimed = order_service::claim_order_for_processing(db, order_no).await?;
+    if !claimed {
+        // Check if already delivered (fully processed by another thread)
+        let order = order_service::get_order_by_no(db, order_no).await?;
+        if let Some(o) = order {
+            if o.status == "delivered" || o.status == "processing" {
+                info!(order_no = %order_no, status = %o.status, "Order already claimed/delivered, skipping");
+                return Ok(());
+            }
+        }
+        info!(order_no = %order_no, "Order claim failed (concurrent processing), skipping");
+        return Ok(());
+    }
+
+    // From here, we own the order in "processing" state
+    match do_delivery(db, order_no, config).await {
+        Ok(()) => {
+            info!(order_no = %order_no, "Order fully processed (processing -> delivered)");
+            Ok(())
+        }
+        Err(e) => {
+            // Rollback status to "paid" so future retries can re-claim
+            error!(order_no = %order_no, "Delivery failed, rolling back to paid: {}", e);
+            if let Err(rollback_err) =
+                order_service::update_order_status(db, order_no, "paid").await
+            {
+                error!(order_no = %order_no, "Failed to rollback status: {}", rollback_err);
+            }
+            Err(e)
+        }
+    }
+}
+
+/// Inner delivery logic, separated so the caller can handle rollback.
+async fn do_delivery(
+    db: &sea_orm::DatabaseConnection,
+    order_no: &str,
+    config: &AppConfig,
+) -> AppResult<()> {
     let order = order_service::get_order_by_no(db, order_no)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Order {} not found", order_no)))?;
@@ -224,7 +264,7 @@ pub async fn epay_notify(
             AppError::NotFound(format!("Order {} not found", cb_data.order_no))
         })?;
 
-    // Idempotent: skip if fully delivered; allow retry if paid but not yet delivered
+    // Idempotent: skip if fully delivered or failed
     if order.status == "delivered" {
         info!(order_no = %cb_data.order_no, "Order already delivered, skipping");
         return Ok(HttpResponse::Ok().body("success"));
@@ -233,9 +273,8 @@ pub async fn epay_notify(
         info!(order_no = %cb_data.order_no, "Order marked as failed, skipping");
         return Ok(HttpResponse::Ok().body("success"));
     }
-    let needs_delivery = order.status == "paid" && order.cards_snapshot.is_none();
-    if order.status != "pending" && !needs_delivery {
-        info!(order_no = %cb_data.order_no, status = %order.status, "Order already processed, skipping");
+    if order.status == "processing" {
+        info!(order_no = %cb_data.order_no, "Order already being processed, skipping");
         return Ok(HttpResponse::Ok().body("success"));
     }
 
@@ -251,17 +290,14 @@ pub async fn epay_notify(
         return Ok(HttpResponse::BadRequest().body("amount mismatch"));
     }
 
-    // Update to paid (idempotent — no-op if already paid)
-    if order.status == "pending" {
-        order_service::update_order_status(db.get_ref(), &cb_data.order_no, "paid").await?;
-    }
+    // Record trade_no if available
     if !cb_data.trade_no.is_empty() {
         order_service::update_order_trade_no(db.get_ref(), &cb_data.order_no, &cb_data.trade_no)
             .await?;
     }
 
-    // Process paid order (deliver cards, post action, AFF)
-    // Only ACK success if delivery succeeds; otherwise return 500 for retry
+    // Process paid order (claim → deliver → commission)
+    // CAS claim inside handles concurrency; returns Ok if already claimed
     if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no, config.get_ref()).await {
         error!(order_no = %cb_data.order_no, "Failed to process paid order: {}", e);
         return Ok(HttpResponse::InternalServerError().body("delivery failed"));
@@ -317,7 +353,7 @@ pub async fn tokenpay_notify(
             AppError::NotFound(format!("Order {} not found", cb_data.order_no))
         })?;
 
-    // Idempotent: skip if fully delivered; allow retry if paid but not yet delivered
+    // Idempotent: skip if fully delivered, failed, or already being processed
     if order.status == "delivered" {
         info!(order_no = %cb_data.order_no, "Order already delivered, skipping");
         return Ok(HttpResponse::Ok().body("ok"));
@@ -326,9 +362,8 @@ pub async fn tokenpay_notify(
         info!(order_no = %cb_data.order_no, "Order marked as failed, skipping");
         return Ok(HttpResponse::Ok().body("ok"));
     }
-    let needs_delivery = order.status == "paid" && order.cards_snapshot.is_none();
-    if order.status != "pending" && !needs_delivery {
-        info!(order_no = %cb_data.order_no, status = %order.status, "Order already processed, skipping");
+    if order.status == "processing" {
+        info!(order_no = %cb_data.order_no, "Order already being processed, skipping");
         return Ok(HttpResponse::Ok().body("ok"));
     }
 
@@ -344,16 +379,13 @@ pub async fn tokenpay_notify(
         return Ok(HttpResponse::BadRequest().body("amount mismatch"));
     }
 
-    // Update to paid (idempotent — no-op if already paid)
-    if order.status == "pending" {
-        order_service::update_order_status(db.get_ref(), &cb_data.order_no, "paid").await?;
-    }
+    // Record trade_no if available
     if !cb_data.trade_no.is_empty() {
         order_service::update_order_trade_no(db.get_ref(), &cb_data.order_no, &cb_data.trade_no)
             .await?;
     }
 
-    // Process paid order - only ACK on success
+    // Process paid order (claim → deliver → commission)
     if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no, config.get_ref()).await {
         error!(order_no = %cb_data.order_no, "Failed to process paid order: {}", e);
         return Ok(HttpResponse::InternalServerError().body("delivery failed"));

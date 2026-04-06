@@ -1,17 +1,20 @@
 [server]
 host = "127.0.0.1"
 port = 8080
+# IMPORTANT: Set this to your actual domain in production for CORS security
 # public_base_url = "https://your-domain.com"
 
 [database]
 url = "sqlite:./aff_shop.db?mode=rwc"
 
 [jwt]
+# IMPORTANT: Change this to a long random string before deploying!
 secret = "change-me-in-production-use-a-long-random-string"
 expiration_hours = 24
 
 [admin]
 username = "admin"
+# IMPORTANT: Change this! If left as default, a random password will be generated on first run.
 password = "admin123"
 
 [security]

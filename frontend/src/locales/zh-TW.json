@@ -182,6 +182,7 @@
     "aff_code": "推廣碼",
     "aff_commission": "推廣佣金",
     "query_title": "訂單查詢",
+    "enter_email_for_order": "請輸入購買時使用的信箱以查看訂單",
     "query_hint": "輸入信箱查詢訂單",
     "query_button": "查詢",
     "no_orders": "未找到訂單",
