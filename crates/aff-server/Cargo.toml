@@ -1,0 +1,22 @@
+[package]
+name = "aff-server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "aff-server"
+path = "src/main.rs"
+
+[dependencies]
+aff-common = { path = "../aff-common" }
+aff-entity = { path = "../aff-entity" }
+aff-core = { path = "../aff-core" }
+aff-api = { path = "../aff-api" }
+actix-web = { workspace = true }
+actix-rt = { workspace = true }
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-actix-web = { workspace = true }
+tokio = { workspace = true }

@@ -1,0 +1,13 @@
+[package]
+name = "aff-entity"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aff-common = { path = "../aff-common" }
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
