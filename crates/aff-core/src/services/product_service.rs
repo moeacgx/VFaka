@@ -63,6 +63,8 @@ pub async fn create_product(
         sort_order: Set(dto.sort_order.unwrap_or(0)),
         min_quantity: Set(dto.min_quantity.unwrap_or(1)),
         max_quantity: Set(dto.max_quantity.unwrap_or(10)),
+        image_url: Set(dto.image_url),
+        video_url: Set(dto.video_url),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -138,6 +140,12 @@ pub async fn update_product(
     if let Some(v) = dto.max_quantity {
         model.max_quantity = Set(v);
     }
+    if let Some(v) = dto.image_url {
+        model.image_url = Set(Some(v));
+    }
+    if let Some(v) = dto.video_url {
+        model.video_url = Set(Some(v));
+    }
 
     model.updated_at = Set(chrono::Utc::now());
 
@@ -190,6 +198,8 @@ fn to_product_response(
         sort_order: p.sort_order,
         min_quantity: p.min_quantity,
         max_quantity: p.max_quantity,
+        image_url: p.image_url,
+        video_url: p.video_url,
         created_at: p.created_at,
         updated_at: p.updated_at,
     }

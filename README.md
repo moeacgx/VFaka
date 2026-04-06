@@ -10,7 +10,13 @@
 - **AFF 推广系统**: 邀请返佣，多级等级体系 (青铜→白银→黄金→钻石)，自动升级
 - **多链提现**: 支持 USDT/USDC 在 Tron、Polygon、Base 链提现
 - **支付后触发**: 支持 Webhook 回调和 Shell 命令执行
-- **模块化架构**: Cargo Workspace 6 个 crate，清晰分层
+- **商品媒体**: 商品支持上传图片/视频，本地或 S3 存储
+- **商城公告**: 管理员可配置公告栏，支持 info/warning/success 样式
+- **Telegram 通知**: 支付成功和提现申请实时推送到 Telegram Bot
+- **邮件通知**: SMTP 邮件通知订单确认和提现状态变更
+- **多语言**: 简体中文、繁体中文、English，浏览器自动检测
+- **深色模式**: 跟随系统 / 手动切换 (亮色/暗色/自动)
+- **模块化架构**: Cargo Workspace 7 个 crate，清晰分层
 
 ## 快速开始
 
@@ -21,11 +27,18 @@
 cp config.toml config.local.toml
 # 编辑 config.local.toml，修改 JWT secret 和管理员密码
 
-# 2. 创建数据目录
-mkdir -p data
+# 2. (可选) 配置 TokenPay 加密货币支付
+cp config/tokenpay/appsettings.json.example config/tokenpay/appsettings.json
+# 编辑 appsettings.json，填写收款地址
 
-# 3. 启动
+# 3. 创建数据目录
+mkdir -p data data/uploads
+
+# 4. 启动 (包含 TokenPay)
 docker compose up -d
+
+# 仅启动商城
+docker compose up -d app
 
 # 查看日志
 docker compose logs -f
@@ -33,7 +46,7 @@ docker compose logs -f
 
 ### 本地开发
 
-**环境要求:** Rust 1.75+, Node.js 18+, pnpm
+**环境要求:** Rust 1.88+, Node.js 18+, pnpm
 
 ```bash
 # 1. 构建前端
@@ -83,10 +96,33 @@ password = "admin123"
 - API 地址 (默认 https://pay.myzfw.com)
 
 ### TokenPay
-1. 部署 [TokenPay](https://github.com/LightCountry/TokenPay) 服务
-2. 在管理后台 → 支付通道 → TokenPay，填写:
-   - API 地址 (如 http://127.0.0.1:5000)
-   - 通知密钥
+1. 部署 [TokenPay](https://github.com/LightCountry/TokenPay) 服务 (使用 `docker compose` 会自动部署)
+2. 编辑 `config/tokenpay/appsettings.json`，填写收款钱包地址
+3. 在管理后台 → 支付通道 → TokenPay，填写:
+   - API 地址 (Docker 内: `http://tokenpay:5000`)
+   - 通知密钥 (与 appsettings.json 中的 ApiToken 保持一致)
+
+## 通知配置
+
+### Telegram Bot
+1. 通过 [@BotFather](https://t.me/BotFather) 创建 Bot，获取 Token
+2. 获取 Chat ID (群组或个人)
+3. 管理后台 → 设置 → Telegram 区域填写 Bot Token 和 Chat ID
+4. 点击 "测试" 验证
+
+### SMTP 邮件
+1. 管理后台 → 设置 → SMTP 区域填写邮箱服务器信息
+2. 支持: QQ 邮箱、Gmail、自建 SMTP 等
+3. 点击 "测试" 发送测试邮件
+
+## 存储配置
+
+商品图片/视频支持两种存储后端:
+
+- **本地存储** (默认): 文件保存在 `data/uploads/`，通过 `/uploads/` 路径访问
+- **S3 存储**: 兼容 S3 协议的对象存储 (AWS S3、MinIO、Cloudflare R2 等)
+
+在管理后台 → 设置 → 存储区域切换和配置。
 
 ## 项目结构
 
@@ -98,8 +134,11 @@ AFF/
 │   ├── aff-payment/   # 支付: PaymentProvider trait + 易支付/TokenPay
 │   ├── aff-core/      # 业务逻辑: 订单、卡密、AFF、提现等 Service
 │   ├── aff-api/       # HTTP 层: Actix-web 路由 + JWT 中间件
+│   ├── aff-notify/    # 通知: Telegram Bot + SMTP 邮件
 │   └── aff-server/    # 入口: 配置加载 → DB 初始化 → 启动服务
-├── frontend/          # Vue 3 + TailwindCSS 前端
+├── frontend/          # Vue 3 + TailwindCSS + vue-i18n 前端
+├── vendor/TokenPay/   # TokenPay 加密货币支付 (git submodule)
+├── config/tokenpay/   # TokenPay 配置模板
 └── config.toml        # 默认配置
 ```
 
@@ -118,6 +157,7 @@ AFF/
 | GET | `/aff/tiers` | 查看等级体系 |
 | GET | `/aff/logs?email=` | 查询佣金记录 |
 | POST | `/aff/withdraw` | 申请提现 |
+| GET | `/announcement` | 获取商城公告 |
 
 ### 管理 `/api/admin`
 | 方法 | 路径 | 说明 |
@@ -133,6 +173,9 @@ AFF/
 | PUT | `/withdrawals/{id}/approve` | 通过提现 |
 | PUT | `/withdrawals/{id}/reject` | 拒绝提现 |
 | GET/PUT | `/settings` | 系统设置 |
+| POST | `/settings/test-telegram` | 测试 Telegram 通知 |
+| POST | `/settings/test-email` | 测试 SMTP 邮件 |
+| POST | `/upload` | 上传文件 (图片/视频) |
 | GET | `/admins` | 管理员列表 |
 | GET | `/aff/users` | AFF 用户列表 |
 | CRUD | `/aff/tiers` | AFF 等级管理 |
@@ -152,6 +195,13 @@ AFF/
 - 商品可单独设置返佣比例，优先于等级比例
 - 管理员可在后台自由增删等级、调整比例和门槛
 - 提现支持 USDT/USDC，可选 Tron/Polygon/Base 链
+
+## 多语言 & 深色模式
+
+- 前端支持简体中文、繁体中文、English 三种语言
+- 首次访问自动检测浏览器语言，可在页面顶部手动切换
+- 深色模式支持: 亮色 / 暗色 / 跟随系统，点击顶部图标切换
+- 偏好设置持久化到 localStorage
 
 ## 开发
 

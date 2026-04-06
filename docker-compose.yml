@@ -10,4 +10,20 @@ services:
       - RUST_LOG=info
       - AFF_SERVER_HOST=0.0.0.0
       - AFF_DATABASE_URL=sqlite:./data/aff_shop.db?mode=rwc
+    depends_on:
+      - tokenpay
+    restart: unless-stopped
+
+  tokenpay:
+    build:
+      context: ./vendor/TokenPay/src
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./config/tokenpay/appsettings.json:/app/appsettings.json:ro
+      - ./data/tokenpay:/app/data
+    environment:
+      - ASPNETCORE_URLS=http://+:5000
+      - ASPNETCORE_ENVIRONMENT=Production
     restart: unless-stopped

@@ -94,6 +94,12 @@ async fn main() -> std::io::Result<()> {
                 actix_web::HttpResponse::Ok().json(serde_json::json!({"status": "ok"}))
             }));
 
+        // Serve uploaded files
+        let uploads_path = std::path::Path::new("data/uploads");
+        if uploads_path.exists() {
+            app = app.service(actix_files::Files::new("/uploads", "data/uploads"));
+        }
+
         // Serve Vue frontend static files if dist/ exists
         let dist_path = std::path::Path::new("frontend/dist");
         if dist_path.exists() {

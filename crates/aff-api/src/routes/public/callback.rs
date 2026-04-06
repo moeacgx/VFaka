@@ -6,10 +6,49 @@ use aff_common::config::AppConfig;
 use aff_common::error::{AppError, AppResult};
 use aff_core::services::{
     aff_service, card_service, order_service, payment_config_service, post_action, product_service,
+    settings_service,
 };
 use aff_entity::entities::card;
 use aff_payment::create_provider;
 use aff_payment::provider::CallbackRawData;
+
+async fn load_telegram_config(db: &DatabaseConnection) -> aff_notify::telegram::TelegramConfig {
+    let bot_token = settings_service::get_setting(db, "telegram_bot_token")
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let chat_id = settings_service::get_setting(db, "telegram_chat_id")
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let enabled = settings_service::get_setting(db, "telegram_enabled")
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "false".to_string())
+        == "true";
+
+    aff_notify::telegram::TelegramConfig {
+        bot_token,
+        chat_id,
+        enabled,
+    }
+}
+
+async fn load_smtp_config(db: &DatabaseConnection) -> aff_notify::email::SmtpConfig {
+    let host = settings_service::get_setting(db, "smtp_host").await.ok().flatten().unwrap_or_default();
+    let port: u16 = settings_service::get_setting(db, "smtp_port").await.ok().flatten()
+        .unwrap_or_else(|| "465".to_string()).parse().unwrap_or(465);
+    let username = settings_service::get_setting(db, "smtp_username").await.ok().flatten().unwrap_or_default();
+    let password = settings_service::get_setting(db, "smtp_password").await.ok().flatten().unwrap_or_default();
+    let from_address = settings_service::get_setting(db, "smtp_from").await.ok().flatten().unwrap_or_default();
+    let enabled = settings_service::get_setting(db, "smtp_enabled").await.ok().flatten()
+        .unwrap_or_else(|| "false".to_string()) == "true";
+
+    aff_notify::email::SmtpConfig { host, port, username, password, from_address, enabled }
+}
 
 async fn process_paid_order(
     db: &sea_orm::DatabaseConnection,
@@ -107,6 +146,38 @@ async fn process_paid_order(
     if let Err(e) = aff_service::process_commission(db, &order).await {
         error!(order_no = %order_no, "AFF commission processing failed: {}", e);
     }
+
+    // Send notifications
+    let tg_config = load_telegram_config(db).await;
+    let smtp_config = load_smtp_config(db).await;
+
+    let product_name = aff_entity::entities::product::Entity::find_by_id(order.product_id)
+        .one(db)
+        .await
+        .ok()
+        .flatten()
+        .map(|p| p.name.clone())
+        .unwrap_or_else(|| format!("Product #{}", order.product_id));
+
+    aff_notify::telegram::send_payment_notification(
+        tg_config,
+        order.order_no.clone(),
+        order.email.clone(),
+        order.total_amount,
+        product_name.clone(),
+        order.quantity,
+    );
+
+    let cards_for_email = order.cards_snapshot.clone().unwrap_or_default();
+    aff_notify::email::send_order_confirmation(
+        smtp_config,
+        order.email.clone(),
+        order.order_no.clone(),
+        product_name,
+        order.quantity,
+        order.total_amount,
+        cards_for_email,
+    );
 
     info!(order_no = %order_no, "Order fully processed (paid -> delivered)");
     Ok(())

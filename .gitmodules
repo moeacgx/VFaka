@@ -1,0 +1,3 @@
+[submodule "vendor/TokenPay"]
+	path = vendor/TokenPay
+	url = https://github.com/LightCountry/TokenPay.git
