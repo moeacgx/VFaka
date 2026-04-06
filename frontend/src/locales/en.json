@@ -38,7 +38,18 @@
     "operation_success": "Operation successful",
     "operation_failed": "Operation failed",
     "confirm_delete": "Confirm delete?",
-    "no_data": "No data"
+    "no_data": "No data",
+    "processing": "Processing...",
+    "submitting": "Submitting...",
+    "enter_email_required": "Please enter email address",
+    "load_failed": "Failed to load, please refresh",
+    "query_failed": "Query failed, please retry",
+    "prev_page": "Previous",
+    "next_page": "Next",
+    "page_info": "Page {current} / {total}",
+    "saving": "Saving...",
+    "to": "to",
+    "current_user": "Current user"
   },
   "nav": {
     "home": "Home",
@@ -112,14 +123,30 @@
     "buy_now": "Buy Now",
     "in_stock": "In Stock",
     "out_of_stock": "Out of Stock",
-    "select_payment": "Select payment method"
+    "select_payment": "Select payment method",
+    "product_list": "Product List",
+    "restock": "Restock",
+    "restock_title": "Restock - Batch Import Cards",
+    "usdt_polygon": "USDT-Polygon",
+    "webhook": "Webhook",
+    "command": "Command",
+    "aff_rate_hint": "Leave empty for global setting",
+    "enable_product": "Enable Product",
+    "import_success": "Successfully imported {count} cards",
+    "select_product_cards": "Please select product and enter cards",
+    "fiat": "Fiat",
+    "crypto": "Crypto",
+    "confirm_purchase": "Confirm Purchase",
+    "create_order_failed": "Failed to create order, please retry",
+    "select_payment_required": "Please select a payment method"
   },
   "category": {
     "name": "Category Name",
     "sort_order": "Sort Order",
     "active": "Active",
     "add_category": "Add Category",
-    "edit_category": "Edit Category"
+    "edit_category": "Edit Category",
+    "category_list": "Category List"
   },
   "card": {
     "content": "Card Content",
@@ -130,7 +157,13 @@
     "import_hint": "One card per line",
     "product_select": "Select Product",
     "batch_import": "Batch Import",
-    "total_cards": "Total Cards"
+    "total_cards": "Total Cards",
+    "card_list": "Card List",
+    "all_products": "All Products",
+    "all_status": "All Status",
+    "import_title": "Batch Import Cards",
+    "import_success": "Successfully imported {count} cards",
+    "select_product_cards": "Please select product and enter cards"
   },
   "order": {
     "order_no": "Order No.",
@@ -160,7 +193,8 @@
     },
     "detail": "Order Detail",
     "create_order": "Create Order",
-    "email_placeholder": "Enter your email"
+    "email_placeholder": "Enter your email",
+    "time": "Time"
   },
   "payment": {
     "epay_title": "Epay Configuration",
@@ -208,7 +242,29 @@
     "manage_users": "AFF Users",
     "add_tier": "Add Tier",
     "edit_tier": "Edit Tier",
-    "required_amount": "Required Amount"
+    "required_amount": "Required Amount",
+    "not_registered_hint": "This email is not registered yet. Set a withdrawal password to register.",
+    "password_min_hint": "At least 6 characters",
+    "confirm_password_hint": "Enter password again",
+    "enter_password_required": "Please enter withdrawal password",
+    "password_mismatch": "Passwords do not match",
+    "password_min_length": "Password must be at least 6 characters",
+    "registering": "Registering...",
+    "register_failed": "Registration failed",
+    "enter_valid_amount": "Please enter a valid amount",
+    "withdraw_exceed_balance": "Amount exceeds available balance",
+    "enter_wallet_required": "Please enter wallet address",
+    "enter_withdraw_password": "Please enter withdrawal password",
+    "withdraw_success": "Withdrawal submitted, pending review",
+    "withdraw_failed": "Withdrawal failed",
+    "credited": "Credited",
+    "upgrade_remaining": "¥{amount} more to reach {level}",
+    "total_referral_amount": "Referred ¥{earned} / ¥{required}",
+    "wallet_placeholder": "Enter receiving wallet address",
+    "max_amount": "Max {amount}",
+    "withdraw_settings": "Withdrawal Settings",
+    "min_withdraw_amount": "Min Withdrawal Amount",
+    "withdraw_fee_rate": "Withdrawal Fee Rate (%)"
   },
   "withdrawal": {
     "title": "Withdrawal Management",
@@ -236,7 +292,8 @@
     "role": "Role",
     "super_admin": "Super Admin",
     "new_password": "New Password",
-    "confirm_password": "Confirm Password"
+    "confirm_password": "Confirm Password",
+    "admin_role": "Admin"
   },
   "settings": {
     "title": "System Settings",
@@ -268,7 +325,19 @@
     "announcement": "Announcement",
     "announcement_text": "Announcement Text",
     "announcement_type": "Type",
-    "save_settings": "Save Settings"
+    "save_settings": "Save Settings",
+    "basic": "Basic Settings",
+    "site_keywords": "Site Keywords",
+    "site_logo": "Site Logo URL",
+    "contact_email": "Contact Email",
+    "contact_telegram": "Contact Telegram",
+    "aff_commission_rate": "AFF Commission Rate (%)",
+    "aff_min_withdraw": "Min Withdrawal Amount",
+    "aff_withdraw_fee_rate": "Withdrawal Fee Rate (%)",
+    "announcement_enabled": "Enable Announcement",
+    "smtp_enabled": "Enable SMTP",
+    "telegram_enabled": "Enable Telegram",
+    "test_email_address": "Test Email Address"
   },
   "theme": {
     "light": "Light",

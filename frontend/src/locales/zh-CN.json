@@ -38,7 +38,18 @@
     "operation_success": "操作成功",
     "operation_failed": "操作失败",
     "confirm_delete": "确认删除？",
-    "no_data": "暂无数据"
+    "no_data": "暂无数据",
+    "processing": "处理中...",
+    "submitting": "提交中...",
+    "enter_email_required": "请输入邮箱地址",
+    "load_failed": "加载失败，请刷新重试",
+    "query_failed": "查询失败，请重试",
+    "prev_page": "上一页",
+    "next_page": "下一页",
+    "page_info": "第 {current} / {total} 页",
+    "saving": "保存中...",
+    "to": "至",
+    "current_user": "当前用户"
   },
   "nav": {
     "home": "首页",
@@ -112,14 +123,30 @@
     "buy_now": "立即购买",
     "in_stock": "有库存",
     "out_of_stock": "已售罄",
-    "select_payment": "选择支付方式"
+    "select_payment": "选择支付方式",
+    "product_list": "商品列表",
+    "restock": "补货",
+    "restock_title": "补货 - 批量导入卡密",
+    "usdt_polygon": "USDT-Polygon",
+    "webhook": "Webhook",
+    "command": "命令",
+    "aff_rate_hint": "留空使用全局设置",
+    "enable_product": "启用商品",
+    "import_success": "成功导入 {count} 张卡密",
+    "select_product_cards": "请选择商品并输入卡密",
+    "fiat": "法币支付",
+    "crypto": "加密货币",
+    "confirm_purchase": "确认购买",
+    "create_order_failed": "创建订单失败，请重试",
+    "select_payment_required": "请选择支付方式"
   },
   "category": {
     "name": "分类名称",
     "sort_order": "排序",
     "active": "启用",
     "add_category": "添加分类",
-    "edit_category": "编辑分类"
+    "edit_category": "编辑分类",
+    "category_list": "分类列表"
   },
   "card": {
     "content": "卡密内容",
@@ -130,7 +157,13 @@
     "import_hint": "每行一个卡密",
     "product_select": "选择商品",
     "batch_import": "批量导入",
-    "total_cards": "卡密总数"
+    "total_cards": "卡密总数",
+    "card_list": "卡密列表",
+    "all_products": "全部商品",
+    "all_status": "全部状态",
+    "import_title": "批量导入卡密",
+    "import_success": "成功导入 {count} 张卡密",
+    "select_product_cards": "请选择商品并输入卡密"
   },
   "order": {
     "order_no": "订单号",
@@ -160,7 +193,8 @@
     },
     "detail": "订单详情",
     "create_order": "创建订单",
-    "email_placeholder": "请输入邮箱"
+    "email_placeholder": "请输入邮箱",
+    "time": "时间"
   },
   "payment": {
     "epay_title": "易支付配置",
@@ -208,7 +242,29 @@
     "manage_users": "推广用户",
     "add_tier": "添加等级",
     "edit_tier": "编辑等级",
-    "required_amount": "所需金额"
+    "required_amount": "所需金额",
+    "not_registered_hint": "该邮箱尚未注册，请设置提现密码完成注册",
+    "password_min_hint": "至少6位",
+    "confirm_password_hint": "再次输入密码",
+    "enter_password_required": "请输入提现密码",
+    "password_mismatch": "两次密码输入不一致",
+    "password_min_length": "密码长度至少6位",
+    "registering": "注册中...",
+    "register_failed": "注册失败",
+    "enter_valid_amount": "请输入有效金额",
+    "withdraw_exceed_balance": "提现金额不能超过可用余额",
+    "enter_wallet_required": "请输入钱包地址",
+    "enter_withdraw_password": "请输入提现密码",
+    "withdraw_success": "提现申请已提交，请等待审核",
+    "withdraw_failed": "提现失败",
+    "credited": "已入账",
+    "upgrade_remaining": "距升级 {level} 还需 ¥{amount}",
+    "total_referral_amount": "累计邀请 ¥{earned} / ¥{required}",
+    "wallet_placeholder": "请输入收款钱包地址",
+    "max_amount": "最多 {amount}",
+    "withdraw_settings": "提现设置",
+    "min_withdraw_amount": "最低提现金额",
+    "withdraw_fee_rate": "提现手续费率 (%)"
   },
   "withdrawal": {
     "title": "提现管理",
@@ -236,7 +292,8 @@
     "role": "角色",
     "super_admin": "超级管理员",
     "new_password": "新密码",
-    "confirm_password": "确认密码"
+    "confirm_password": "确认密码",
+    "admin_role": "管理员"
   },
   "settings": {
     "title": "系统设置",
@@ -268,7 +325,19 @@
     "announcement": "公告设置",
     "announcement_text": "公告内容",
     "announcement_type": "类型",
-    "save_settings": "保存设置"
+    "save_settings": "保存设置",
+    "basic": "基本设置",
+    "site_keywords": "站点关键词",
+    "site_logo": "站点 Logo URL",
+    "contact_email": "联系邮箱",
+    "contact_telegram": "联系 Telegram",
+    "aff_commission_rate": "推广佣金率 (%)",
+    "aff_min_withdraw": "最低提现金额",
+    "aff_withdraw_fee_rate": "提现手续费率 (%)",
+    "announcement_enabled": "启用公告",
+    "smtp_enabled": "启用 SMTP",
+    "telegram_enabled": "启用 Telegram",
+    "test_email_address": "测试邮箱地址"
   },
   "theme": {
     "light": "浅色",
