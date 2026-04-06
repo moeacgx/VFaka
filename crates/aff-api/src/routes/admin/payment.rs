@@ -13,7 +13,7 @@ pub struct UpdatePaymentConfigDto {
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/payment")
+        web::scope("/payment-configs")
             .route("", web::get().to(list))
             .route("/{channel}", web::put().to(update)),
     );
