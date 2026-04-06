@@ -7,6 +7,7 @@ edition = "2021"
 aff-common = { path = "../aff-common" }
 aff-entity = { path = "../aff-entity" }
 aff-core = { path = "../aff-core" }
+aff-payment = { path = "../aff-payment" }
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
 actix-files = { workspace = true }
@@ -17,3 +18,4 @@ jsonwebtoken = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
+url = { workspace = true }

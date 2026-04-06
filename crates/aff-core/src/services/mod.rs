@@ -1,1 +1,11 @@
-// Service modules — each will be implemented in their respective todo
+pub mod admin_service;
+pub mod aff_service;
+pub mod card_service;
+pub mod category_service;
+pub mod order_service;
+pub mod payment_config_service;
+pub mod post_action;
+pub mod product_service;
+pub mod settings_service;
+pub mod withdraw_service;
+pub mod withdrawal_service;

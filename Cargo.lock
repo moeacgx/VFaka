@@ -240,6 +240,7 @@ dependencies = [
  "aff-common",
  "aff-core",
  "aff-entity",
+ "aff-payment",
  "chrono",
  "jsonwebtoken",
  "sea-orm",
@@ -247,6 +248,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -281,6 +283,7 @@ dependencies = [
  "async-trait",
  "bcrypt",
  "chrono",
+ "jsonwebtoken",
  "reqwest",
  "sea-orm",
  "serde",

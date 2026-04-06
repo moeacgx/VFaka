@@ -1,8 +1,16 @@
+pub mod aff;
+pub mod callback;
+pub mod order;
+pub mod product;
+
 use actix_web::web;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/v1")
-            // Public routes will be added here
+            .configure(product::configure)
+            .configure(order::configure)
+            .configure(callback::configure)
+            .configure(aff::configure),
     );
 }
