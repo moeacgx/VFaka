@@ -38,3 +38,4 @@ frontend/dist/
 
 # Logs
 *.log
+config/tokenpay/appsettings.json

@@ -18,8 +18,8 @@ services:
     build:
       context: ./vendor/TokenPay/src
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     volumes:
       - ./config/tokenpay/appsettings.json:/app/appsettings.json:ro
       - ./data/tokenpay:/app/data
