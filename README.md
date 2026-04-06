@@ -14,11 +14,26 @@
 
 ## 快速开始
 
-### 环境要求
-- Rust 1.75+
-- Node.js 18+ & pnpm
+### Docker 部署 (推荐)
 
-### 启动
+```bash
+# 1. 创建配置文件
+cp config.toml config.local.toml
+# 编辑 config.local.toml，修改 JWT secret 和管理员密码
+
+# 2. 创建数据目录
+mkdir -p data
+
+# 3. 启动
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+```
+
+### 本地开发
+
+**环境要求:** Rust 1.75+, Node.js 18+, pnpm
 
 ```bash
 # 1. 构建前端
