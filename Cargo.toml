@@ -1,0 +1,63 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aff-common",
+    "crates/aff-entity",
+    "crates/aff-payment",
+    "crates/aff-core",
+    "crates/aff-api",
+    "crates/aff-server",
+]
+
+[workspace.dependencies]
+# Web framework
+actix-web = "4"
+actix-rt = "2"
+actix-cors = "0.7"
+actix-files = "0.6"
+
+# Database / ORM
+sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
+sea-orm-migration = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Authentication
+jsonwebtoken = "9"
+bcrypt = "0.16"
+
+# Cryptography
+rsa = { version = "0.9", features = ["sha2"] }
+md-5 = "0.10"
+sha2 = "0.10"
+base64 = "0.22"
+pkcs8 = { version = "0.10", features = ["pem"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-actix-web = "0.7"
+
+# Configuration
+config = "0.14"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
+url = "2"
+
+# Async trait
+async-trait = "0.1"

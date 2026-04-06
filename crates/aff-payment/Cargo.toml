@@ -1,0 +1,16 @@
+[package]
+name = "aff-payment"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aff-common = { path = "../aff-common" }
+aff-entity = { path = "../aff-entity" }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+url = { workspace = true }
