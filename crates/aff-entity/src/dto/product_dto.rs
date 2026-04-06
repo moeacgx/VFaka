@@ -20,6 +20,8 @@ pub struct CreateProductDto {
     pub sort_order: Option<i32>,
     pub min_quantity: Option<i32>,
     pub max_quantity: Option<i32>,
+    pub image_url: Option<String>,
+    pub video_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +43,8 @@ pub struct UpdateProductDto {
     pub sort_order: Option<i32>,
     pub min_quantity: Option<i32>,
     pub max_quantity: Option<i32>,
+    pub image_url: Option<String>,
+    pub video_url: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -66,6 +70,8 @@ pub struct ProductResponse {
     pub sort_order: i32,
     pub min_quantity: i32,
     pub max_quantity: i32,
+    pub image_url: Option<String>,
+    pub video_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

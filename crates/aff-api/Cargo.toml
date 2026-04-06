@@ -8,9 +8,11 @@ aff-common = { path = "../aff-common" }
 aff-entity = { path = "../aff-entity" }
 aff-core = { path = "../aff-core" }
 aff-payment = { path = "../aff-payment" }
+aff-notify = { path = "../aff-notify" }
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
 actix-files = { workspace = true }
+actix-multipart = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,3 +21,8 @@ tracing = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 url = { workspace = true }
+uuid = { workspace = true }
+tokio = { workspace = true }
+mime_guess = { workspace = true }
+futures-util = "0.3"
+reqwest = { workspace = true }

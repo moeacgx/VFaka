@@ -25,6 +25,8 @@ pub struct Model {
     pub sort_order: i32,
     pub min_quantity: i32,
     pub max_quantity: i32,
+    pub image_url: Option<String>,
+    pub video_url: Option<String>,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

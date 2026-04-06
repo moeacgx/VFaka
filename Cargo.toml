@@ -6,6 +6,7 @@ members = [
     "crates/aff-payment",
     "crates/aff-core",
     "crates/aff-api",
+    "crates/aff-notify",
     "crates/aff-server",
 ]
 
@@ -61,3 +62,7 @@ url = "2"
 
 # Async trait
 async-trait = "0.1"
+
+# File upload
+actix-multipart = "0.7"
+mime_guess = "2"

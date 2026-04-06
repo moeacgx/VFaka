@@ -1,0 +1,28 @@
+{
+  "ConnectionStrings": {
+    "DB": "Data Source=/app/data/TokenPay.db"
+  },
+  "TRON-PRO-API-KEY": "YOUR_TRONGRID_API_KEY",
+  "BaseCurrency": "CNY",
+  "Rate": {
+    "USDT": 0,
+    "USDC": 0,
+    "TRX": 0
+  },
+  "UseDynamicAddress": false,
+  "Address": {
+    "TRON": [
+      "YOUR_TRON_ADDRESS_HERE"
+    ],
+    "EVM": []
+  },
+  "ApiToken": "CHANGE_THIS_TO_A_RANDOM_STRING",
+  "WebSiteUrl": "http://localhost:5000",
+  "NotifyUrl": "http://app:8080/api/v1/pay/tokenpay/notify",
+  "ExpireTime": 1800,
+  "OnlyConfirmed": true,
+  "Telegram": {
+    "AdminUserId": 0,
+    "BotToken": ""
+  }
+}

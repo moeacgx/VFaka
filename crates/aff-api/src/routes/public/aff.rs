@@ -2,7 +2,7 @@ use actix_web::{web, HttpResponse};
 use sea_orm::DatabaseConnection;
 
 use aff_common::error::{AppError, AppResult};
-use aff_core::services::{aff_service, withdraw_service};
+use aff_core::services::{aff_service, settings_service, withdraw_service};
 use aff_entity::dto::{AffRegisterDto, AffWithdrawDto};
 use serde::Deserialize;
 
@@ -59,6 +59,25 @@ pub async fn withdraw(
     }
 
     let withdrawal = withdraw_service::create_withdrawal(db.get_ref(), dto).await?;
+
+    // Send Telegram notification for new withdrawal request
+    let tg_enabled = settings_service::get_setting(db.get_ref(), "telegram_enabled")
+        .await.ok().flatten().unwrap_or_default() == "true";
+    if tg_enabled {
+        let bot_token = settings_service::get_setting(db.get_ref(), "telegram_bot_token")
+            .await.ok().flatten().unwrap_or_default();
+        let chat_id = settings_service::get_setting(db.get_ref(), "telegram_chat_id")
+            .await.ok().flatten().unwrap_or_default();
+        let config = aff_notify::telegram::TelegramConfig { bot_token, chat_id, enabled: true };
+        aff_notify::telegram::send_withdrawal_notification(
+            config,
+            withdrawal.wallet_address.clone(),
+            withdrawal.amount,
+            withdrawal.currency.clone(),
+            withdrawal.chain.clone(),
+            withdrawal.wallet_address.clone(),
+        );
+    }
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "id": withdrawal.id,

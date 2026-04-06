@@ -1,4 +1,5 @@
 pub mod aff;
+pub mod announcement;
 pub mod callback;
 pub mod order;
 pub mod product;
@@ -11,6 +12,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .configure(product::configure)
             .configure(order::configure)
             .configure(callback::configure)
-            .configure(aff::configure),
+            .configure(aff::configure)
+            .configure(announcement::configure),
     );
 }
