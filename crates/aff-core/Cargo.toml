@@ -19,3 +19,4 @@ uuid = { workspace = true }
 bcrypt = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
+jsonwebtoken = { workspace = true }
