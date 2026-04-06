@@ -32,8 +32,8 @@ interface Product {
   allow_usdt_erc20: boolean
   min_quantity: number
   max_quantity: number
-  image_url?: string | null
-  video_url?: string | null
+  image_url?: string
+  video_url?: string
 }
 
 const router = useRouter()
@@ -45,6 +45,7 @@ const activeCategory = ref<number | null>(null)
 const loading = ref(true)
 const error = ref('')
 
+// Modal state
 const showModal = ref(false)
 const selectedProduct = ref<Product | null>(null)
 const orderEmail = ref('')
@@ -114,11 +115,11 @@ function adjustQuantity(delta: number) {
 async function submitOrder() {
   if (!selectedProduct.value) return
   if (!orderEmail.value.trim()) {
-    orderError.value = t('order.email_placeholder')
+    orderError.value = t('common.enter_email_required')
     return
   }
   if (!paymentMethod.value) {
-    orderError.value = t('product.select_payment')
+    orderError.value = t('product.select_payment_required')
     return
   }
 
@@ -142,7 +143,7 @@ async function submitOrder() {
       router.push({ path: '/order', query: { no: data.order_no, email: orderEmail.value.trim() } })
     }
   } catch (e: any) {
-    orderError.value = e.response?.data?.message || e.response?.data?.error || t('common.operation_failed')
+    orderError.value = e.response?.data?.message || e.response?.data?.error || t('product.create_order_failed')
   } finally {
     orderLoading.value = false
   }
@@ -157,25 +158,29 @@ onMounted(async () => {
     categories.value = catRes.data
     products.value = prodRes.data
   } catch (e: any) {
-    error.value = t('common.operation_failed')
+    error.value = t('common.load_failed')
   } finally {
     loading.value = false
   }
+  // Save aff code from URL if present
   getAffCode()
 })
 </script>
 
 <template>
   <main class="max-w-4xl mx-auto px-4 py-8 pb-16">
+    <!-- Loading -->
     <div v-if="loading" class="flex justify-center py-20">
       <div class="w-6 h-6 border-2 border-gray-300 dark:border-gray-600 border-t-blue-600 rounded-full animate-spin"></div>
     </div>
 
+    <!-- Error -->
     <div v-else-if="error" class="text-center py-20">
       <p class="text-red-500 text-sm">{{ error }}</p>
     </div>
 
     <template v-else>
+      <!-- Category tabs -->
       <div class="flex gap-2 mb-8 flex-wrap">
         <button
           @click="activeCategory = null"
@@ -199,17 +204,19 @@ onMounted(async () => {
         >{{ cat.name }}</button>
       </div>
 
+      <!-- Empty state -->
       <div v-if="filteredProducts.length === 0" class="text-center py-20">
         <p class="text-gray-400 dark:text-gray-500 text-sm">{{ $t('common.no_data') }}</p>
       </div>
 
+      <!-- Product grid -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
           v-for="product in filteredProducts"
           :key="product.id"
-          class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none hover:shadow-md dark:hover:shadow-none transition-shadow flex flex-col overflow-hidden"
+          class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none hover:shadow-md transition-shadow flex flex-col"
         >
-          <img v-if="product.image_url" :src="product.image_url" :alt="product.name" class="w-full h-40 object-cover" />
+          <img v-if="product.image_url" :src="product.image_url" :alt="product.name" class="w-full h-40 object-cover rounded-t-xl" />
           <div class="p-5 flex flex-col flex-1">
             <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-1">{{ product.name }}</h3>
             <p class="text-xs text-gray-400 dark:text-gray-500 mb-3 flex-1 leading-relaxed">{{ truncate(product.description, 60) }}</p>
@@ -225,7 +232,7 @@ onMounted(async () => {
                   'px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
                   product.stock_count > 0
                     ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 ]"
               >{{ product.stock_count > 0 ? $t('product.buy_now') : $t('product.out_of_stock') }}</button>
             </div>
@@ -234,36 +241,42 @@ onMounted(async () => {
       </div>
     </template>
 
+    <!-- Purchase Modal -->
     <Teleport to="body">
       <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="fixed inset-0 bg-black/30 backdrop-blur-sm" @click="closeModal"></div>
         <div class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+          <!-- Header -->
           <div class="flex items-center justify-between mb-5">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ selectedProduct?.name }}</h3>
-            <button @click="closeModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1">
+            <button @click="closeModal" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
             </button>
           </div>
 
+          <!-- Product image in modal -->
           <img v-if="selectedProduct?.image_url" :src="selectedProduct.image_url" :alt="selectedProduct.name" class="w-full h-48 object-cover rounded-xl mb-5" />
 
+          <!-- Price -->
           <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-5">
             <div class="text-sm text-gray-500 dark:text-gray-400">{{ $t('product.price') }}</div>
             <div class="text-2xl font-bold text-gray-900 dark:text-white">¥{{ selectedProduct?.price.toFixed(2) }}</div>
           </div>
 
+          <!-- Email -->
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">{{ $t('common.email') }}</label>
             <input
               v-model="orderEmail"
               type="email"
               :placeholder="$t('order.email_placeholder')"
-              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
           </div>
 
+          <!-- Quantity -->
           <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">{{ $t('product.quantity') }}</label>
             <div class="flex items-center gap-3">
@@ -271,17 +284,18 @@ onMounted(async () => {
                 @click="adjustQuantity(-1)"
                 :disabled="orderQuantity <= (selectedProduct?.min_quantity || 1)"
                 class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-              >-</button>
+              >−</button>
               <span class="text-lg font-semibold text-gray-900 dark:text-white w-8 text-center">{{ orderQuantity }}</span>
               <button
                 @click="adjustQuantity(1)"
                 :disabled="orderQuantity >= (selectedProduct?.max_quantity || 1)"
                 class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
               >+</button>
-              <span class="text-xs text-gray-400 dark:text-gray-500">({{ selectedProduct?.min_quantity }} - {{ selectedProduct?.max_quantity }})</span>
+              <span class="text-xs text-gray-400 dark:text-gray-500">（{{ selectedProduct?.min_quantity }} - {{ selectedProduct?.max_quantity }}）</span>
             </div>
           </div>
 
+          <!-- Total -->
           <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-5">
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-500 dark:text-gray-400">{{ $t('common.total') }}</span>
@@ -289,11 +303,12 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- Payment methods -->
           <div class="mb-5">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ $t('product.select_payment') }}</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ $t('product.payment_methods') }}</label>
 
             <div v-if="availableFiat.length" class="mb-3">
-              <div class="text-xs text-gray-400 dark:text-gray-500 mb-1.5">Fiat</div>
+              <div class="text-xs text-gray-400 dark:text-gray-500 mb-1.5">{{ $t('product.fiat') }}</div>
               <div class="flex flex-wrap gap-2">
                 <label
                   v-for="m in availableFiat"
@@ -312,7 +327,7 @@ onMounted(async () => {
             </div>
 
             <div v-if="availableCrypto.length">
-              <div class="text-xs text-gray-400 dark:text-gray-500 mb-1.5">Crypto</div>
+              <div class="text-xs text-gray-400 dark:text-gray-500 mb-1.5">{{ $t('product.crypto') }}</div>
               <div class="flex flex-wrap gap-2">
                 <label
                   v-for="m in availableCrypto"
@@ -331,15 +346,17 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- Error -->
           <p v-if="orderError" class="text-red-500 text-sm mb-3">{{ orderError }}</p>
 
+          <!-- Submit -->
           <button
             @click="submitOrder"
             :disabled="orderLoading"
             class="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             <div v-if="orderLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            {{ orderLoading ? $t('common.loading') : $t('common.confirm') }}
+            {{ orderLoading ? $t('common.processing') : $t('product.confirm_purchase') }}
           </button>
         </div>
       </div>

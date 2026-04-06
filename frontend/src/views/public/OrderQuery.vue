@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { publicApi } from '../../api/public'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface Order {
   id: number
@@ -34,7 +34,7 @@ const error = ref('')
 const searched = ref(false)
 const expandedOrder = ref<string | null>(null)
 
-const statusMap = computed(() => ({
+const statusMap = computed<Record<string, { label: string; class: string }>>(() => ({
   pending: { label: t('order.status.pending'), class: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
   paid: { label: t('order.status.paid'), class: 'bg-blue-50 text-blue-700 border-blue-200' },
   delivered: { label: t('order.status.delivered'), class: 'bg-green-50 text-green-700 border-green-200' },
@@ -42,12 +42,12 @@ const statusMap = computed(() => ({
 }))
 
 function getStatus(status: string) {
-  return (statusMap.value as Record<string, { label: string; class: string }>)[status] || { label: status, class: 'bg-gray-50 text-gray-700 border-gray-200' }
+  return statusMap.value[status] || { label: status, class: 'bg-gray-50 text-gray-700 border-gray-200' }
 }
 
 function formatTime(iso: string) {
   const d = new Date(iso)
-  return d.toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 function toggleExpand(orderNo: string) {
@@ -56,7 +56,7 @@ function toggleExpand(orderNo: string) {
 
 async function queryByEmail() {
   if (!email.value.trim()) {
-    error.value = t('order.email_placeholder')
+    error.value = t('common.enter_email_required')
     return
   }
   loading.value = true
@@ -67,7 +67,7 @@ async function queryByEmail() {
     const res = await publicApi.queryOrders(email.value.trim())
     orders.value = res.data
   } catch (e: any) {
-    error.value = e.response?.data?.message || e.response?.data?.error || t('common.operation_failed')
+    error.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
     orders.value = []
   } finally {
     loading.value = false
@@ -84,7 +84,7 @@ async function querySingleOrder(orderNo: string, orderEmail: string) {
     const res = await publicApi.getOrder(orderNo, orderEmail)
     orders.value = [res.data]
   } catch (e: any) {
-    error.value = e.response?.data?.message || e.response?.data?.error || t('common.operation_failed')
+    error.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
     orders.value = []
   } finally {
     loading.value = false
@@ -102,6 +102,7 @@ onMounted(() => {
 
 <template>
   <main class="max-w-4xl mx-auto px-4 py-8 pb-16">
+    <!-- Search -->
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none p-6 mb-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('order.query_title') }}</h2>
       <div class="flex gap-3">
@@ -110,7 +111,7 @@ onMounted(() => {
           type="email"
           :placeholder="$t('order.query_hint')"
           @keyup.enter="queryByEmail"
-          class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
         />
         <button
           @click="queryByEmail"
@@ -124,6 +125,7 @@ onMounted(() => {
       <p v-if="error" class="text-red-500 text-sm mt-3">{{ error }}</p>
     </div>
 
+    <!-- Results -->
     <div v-if="searched && !loading">
       <div v-if="orders.length === 0" class="text-center py-12">
         <p class="text-gray-400 dark:text-gray-500 text-sm">{{ $t('order.no_orders') }}</p>
@@ -133,8 +135,9 @@ onMounted(() => {
         <div
           v-for="order in orders"
           :key="order.order_no"
-          class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none overflow-hidden transition-shadow hover:shadow-md dark:hover:shadow-none"
+          class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none overflow-hidden transition-shadow hover:shadow-md"
         >
+          <!-- Order row -->
           <div
             class="p-5 cursor-pointer"
             @click="order.status === 'delivered' ? toggleExpand(order.order_no) : null"
@@ -150,17 +153,18 @@ onMounted(() => {
             <div class="flex items-end justify-between">
               <div>
                 <div class="text-base font-semibold text-gray-900 dark:text-white">¥{{ order.total_amount.toFixed(2) }}</div>
-                <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">x {{ order.quantity }} · {{ formatTime(order.created_at) }}</div>
+                <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">× {{ order.quantity }} · {{ formatTime(order.created_at) }}</div>
               </div>
               <div v-if="order.status === 'delivered'" class="text-xs text-blue-500">
-                {{ expandedOrder === order.order_no ? $t('common.close') : $t('order.cards_snapshot') }}
+                {{ expandedOrder === order.order_no ? $t('common.close') : $t('order.cards_snapshot') }} ▾
               </div>
             </div>
           </div>
 
+          <!-- Expanded card content -->
           <div v-if="expandedOrder === order.order_no && order.cards_snapshot" class="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-5">
             <div class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ $t('order.cards_snapshot') }}</div>
-            <pre class="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-all font-mono bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">{{ order.cards_snapshot }}</pre>
+            <pre class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap break-all font-mono bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">{{ order.cards_snapshot }}</pre>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { publicApi } from '../../api/public'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 interface AffInfo {
   email: string
@@ -35,6 +35,7 @@ interface AffLog {
   created_at: string
 }
 
+// Section 1: Balance query
 const queryEmail = ref('')
 const affInfo = ref<AffInfo | null>(null)
 const queryLoading = ref(false)
@@ -42,6 +43,7 @@ const queryError = ref('')
 const notRegistered = ref(false)
 const copied = ref(false)
 
+// Section 2: Register
 const regEmail = ref('')
 const regPassword = ref('')
 const regConfirm = ref('')
@@ -49,6 +51,7 @@ const regLoading = ref(false)
 const regError = ref('')
 const regSuccess = ref<{ aff_code: string; email: string } | null>(null)
 
+// Section 3: Withdraw
 const wdAmount = ref<number | undefined>()
 const wdCurrency = ref('USDT')
 const wdChain = ref('Tron')
@@ -58,6 +61,7 @@ const wdLoading = ref(false)
 const wdError = ref('')
 const wdSuccess = ref('')
 
+// Logs
 const affLogs = ref<AffLog[]>([])
 const logsLoading = ref(false)
 const allTiers = ref<AffTier[]>([])
@@ -71,7 +75,7 @@ const showWithdraw = computed(() => affInfo.value && affInfo.value.balance > 0)
 
 function formatTime(iso: string) {
   const d = new Date(iso)
-  return d.toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString(locale.value, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 async function copyLink() {
@@ -81,6 +85,7 @@ async function copyLink() {
     copied.value = true
     setTimeout(() => (copied.value = false), 2000)
   } catch {
+    // fallback
     const ta = document.createElement('textarea')
     ta.value = affLink.value
     document.body.appendChild(ta)
@@ -94,7 +99,7 @@ async function copyLink() {
 
 async function queryBalance() {
   if (!queryEmail.value.trim()) {
-    queryError.value = t('aff.email_placeholder')
+    queryError.value = t('common.enter_email_required')
     return
   }
   queryLoading.value = true
@@ -109,6 +114,7 @@ async function queryBalance() {
     ])
     affInfo.value = res.data
     allTiers.value = tiersRes.data || []
+    // Also load logs
     loadLogs()
   } catch (e: any) {
     const status = e.response?.status
@@ -116,7 +122,7 @@ async function queryBalance() {
       notRegistered.value = true
       regEmail.value = queryEmail.value.trim()
     } else {
-      queryError.value = e.response?.data?.message || e.response?.data?.error || t('common.operation_failed')
+      queryError.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
     }
   } finally {
     queryLoading.value = false
@@ -138,19 +144,19 @@ async function loadLogs() {
 
 async function register() {
   if (!regEmail.value.trim()) {
-    regError.value = t('aff.email_placeholder')
+    regError.value = t('common.enter_email_required')
     return
   }
   if (!regPassword.value) {
-    regError.value = t('aff.password_placeholder')
+    regError.value = t('aff.enter_password_required')
     return
   }
   if (regPassword.value !== regConfirm.value) {
-    regError.value = t('auth.login_failed')
+    regError.value = t('aff.password_mismatch')
     return
   }
   if (regPassword.value.length < 6) {
-    regError.value = t('common.required')
+    regError.value = t('aff.password_min_length')
     return
   }
 
@@ -163,11 +169,12 @@ async function register() {
       withdraw_password: regPassword.value,
     })
     regSuccess.value = res.data
+    // Auto-query after registration
     queryEmail.value = regEmail.value.trim()
     notRegistered.value = false
     await queryBalance()
   } catch (e: any) {
-    regError.value = e.response?.data?.message || e.response?.data?.error || t('common.operation_failed')
+    regError.value = e.response?.data?.message || e.response?.data?.error || t('aff.register_failed')
   } finally {
     regLoading.value = false
   }
@@ -176,19 +183,19 @@ async function register() {
 async function submitWithdraw() {
   if (!affInfo.value) return
   if (!wdAmount.value || wdAmount.value <= 0) {
-    wdError.value = t('aff.withdraw_amount')
+    wdError.value = t('aff.enter_valid_amount')
     return
   }
   if (wdAmount.value > affInfo.value.balance) {
-    wdError.value = t('aff.balance')
+    wdError.value = t('aff.withdraw_exceed_balance')
     return
   }
   if (!wdAddress.value.trim()) {
-    wdError.value = t('aff.withdraw_address')
+    wdError.value = t('aff.enter_wallet_required')
     return
   }
   if (!wdPassword.value) {
-    wdError.value = t('aff.withdraw_password')
+    wdError.value = t('aff.enter_withdraw_password')
     return
   }
 
@@ -205,13 +212,14 @@ async function submitWithdraw() {
       chain: wdChain.value,
       wallet_address: wdAddress.value.trim(),
     })
-    wdSuccess.value = t('common.operation_success')
+    wdSuccess.value = t('aff.withdraw_success')
     wdAmount.value = undefined
     wdAddress.value = ''
     wdPassword.value = ''
+    // Refresh balance
     await queryBalance()
   } catch (e: any) {
-    wdError.value = e.response?.data?.message || e.response?.data?.error || t('common.operation_failed')
+    wdError.value = e.response?.data?.message || e.response?.data?.error || t('aff.withdraw_failed')
   } finally {
     wdLoading.value = false
   }
@@ -220,7 +228,7 @@ async function submitWithdraw() {
 
 <template>
   <main class="max-w-4xl mx-auto px-4 py-8 pb-16 space-y-6">
-    <!-- Balance Query -->
+    <!-- Section 1: Balance Query -->
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('aff.title') }}</h2>
       <div class="flex gap-3">
@@ -229,7 +237,7 @@ async function submitWithdraw() {
           type="email"
           :placeholder="$t('aff.email_placeholder')"
           @keyup.enter="queryBalance"
-          class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
         />
         <button
           @click="queryBalance"
@@ -237,22 +245,25 @@ async function submitWithdraw() {
           class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
         >
           <div v-if="queryLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-          {{ $t('common.search') }}
+          {{ $t('order.query_button') }}
         </button>
       </div>
       <p v-if="queryError" class="text-red-500 text-sm mt-3">{{ queryError }}</p>
 
+      <!-- Balance info -->
       <div v-if="affInfo" class="mt-5">
+        <!-- Tier badge -->
         <div class="flex items-center gap-3 mb-4">
           <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
             :class="affInfo.level <= 1 ? 'bg-gray-100 text-gray-700' : affInfo.level === 2 ? 'bg-blue-100 text-blue-700' : affInfo.level === 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-purple-100 text-purple-700'">
             {{ affInfo.level_name }} · {{ $t('aff.commission_rate') }} {{ (affInfo.commission_rate * 100).toFixed(1) }}%
           </span>
           <span v-if="affInfo.next_level" class="text-xs text-gray-400 dark:text-gray-500">
-            {{ $t('aff.next_level') }}: {{ affInfo.next_level.name }} - ¥{{ affInfo.next_level.remaining.toFixed(2) }}
+            {{ $t('aff.upgrade_remaining', { level: affInfo.next_level.name, amount: affInfo.next_level.remaining.toFixed(2) }) }}
           </span>
         </div>
 
+        <!-- Progress bar to next level -->
         <div v-if="affInfo.next_level" class="mb-4">
           <div class="flex justify-between text-xs text-gray-400 dark:text-gray-500 mb-1">
             <span>{{ affInfo.level_name }}</span>
@@ -261,7 +272,7 @@ async function submitWithdraw() {
           <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
             <div class="bg-blue-500 h-2 rounded-full transition-all" :style="{ width: Math.min(100, (affInfo.total_earned / affInfo.next_level.required_amount) * 100).toFixed(1) + '%' }"></div>
           </div>
-          <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">¥{{ affInfo.total_earned.toFixed(2) }} / ¥{{ affInfo.next_level.required_amount.toFixed(2) }}</div>
+          <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ $t('aff.total_referral_amount', { earned: affInfo.total_earned.toFixed(2), required: affInfo.next_level.required_amount.toFixed(2) }) }}</div>
         </div>
 
         <div class="grid grid-cols-3 gap-4 mb-4">
@@ -279,12 +290,13 @@ async function submitWithdraw() {
           </div>
         </div>
 
+        <!-- Tier levels overview -->
         <div v-if="allTiers.length > 1" class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-4">
           <div class="text-xs text-gray-400 dark:text-gray-500 mb-2">{{ $t('aff.tier_overview') }}</div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div v-for="tier in allTiers" :key="tier.level"
               class="text-center p-2 rounded-lg border text-xs"
-              :class="affInfo.level === tier.level ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-400' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400'">
+              :class="affInfo.level === tier.level ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400'">
               <div class="font-medium">{{ tier.name }}</div>
               <div class="text-green-600 font-semibold">{{ (tier.commission_rate * 100).toFixed(0) }}%</div>
               <div v-if="tier.required_amount > 0" class="text-gray-400 dark:text-gray-500">≥¥{{ tier.required_amount }}</div>
@@ -292,6 +304,7 @@ async function submitWithdraw() {
           </div>
         </div>
 
+        <!-- Aff link -->
         <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
           <div class="text-xs text-gray-400 dark:text-gray-500 mb-1.5">{{ $t('aff.your_link') }}</div>
           <div class="flex items-center gap-2">
@@ -299,7 +312,7 @@ async function submitWithdraw() {
             <button
               @click="copyLink"
               class="px-3 py-2 text-xs font-medium rounded-lg border transition-all"
-              :class="copied ? 'bg-green-50 text-green-600 border-green-200' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
+              :class="copied ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'"
             >{{ copied ? $t('common.copied') : $t('common.copy') }}</button>
           </div>
           <div class="text-xs text-gray-400 dark:text-gray-500 mt-2">{{ $t('aff.your_code') }}: <span class="font-mono font-medium text-gray-600 dark:text-gray-300">{{ affInfo.aff_code }}</span></div>
@@ -307,10 +320,10 @@ async function submitWithdraw() {
       </div>
     </div>
 
-    <!-- Register -->
+    <!-- Section 2: Register (show if not registered) -->
     <div v-if="notRegistered" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">{{ $t('aff.register_title') }}</h2>
-      <p class="text-sm text-gray-400 dark:text-gray-500 mb-4">{{ $t('aff.register') }}</p>
+      <p class="text-sm text-gray-400 dark:text-gray-500 mb-4">{{ $t('aff.not_registered_hint') }}</p>
 
       <div class="space-y-3">
         <div>
@@ -327,8 +340,8 @@ async function submitWithdraw() {
           <input
             v-model="regPassword"
             type="password"
-            :placeholder="$t('aff.password_placeholder')"
-            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            :placeholder="$t('aff.password_min_hint')"
+            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
         <div>
@@ -336,8 +349,9 @@ async function submitWithdraw() {
           <input
             v-model="regConfirm"
             type="password"
+            :placeholder="$t('aff.confirm_password_hint')"
             @keyup.enter="register"
-            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
       </div>
@@ -350,26 +364,28 @@ async function submitWithdraw() {
         class="mt-4 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
       >
         <div v-if="regLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-        {{ regLoading ? $t('common.loading') : $t('aff.register') }}
+        {{ regLoading ? $t('aff.registering') : $t('aff.register') }}
       </button>
     </div>
 
-    <!-- Withdraw -->
+    <!-- Section 3: Withdraw -->
     <div v-if="showWithdraw" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('aff.withdraw_title') }}</h2>
 
       <div class="space-y-4">
+        <!-- Amount -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('aff.withdraw_amount') }}</label>
           <input
             v-model.number="wdAmount"
             type="number"
             step="0.01"
-            :placeholder="`max ${affInfo?.balance.toFixed(2)}`"
-            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            :placeholder="$t('aff.max_amount', { amount: affInfo?.balance.toFixed(2) })"
+            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
 
+        <!-- Currency -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ $t('aff.withdraw_currency') }}</label>
           <div class="flex gap-2">
@@ -389,6 +405,7 @@ async function submitWithdraw() {
           </div>
         </div>
 
+        <!-- Chain -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ $t('aff.withdraw_chain') }}</label>
           <div class="flex gap-2">
@@ -408,23 +425,25 @@ async function submitWithdraw() {
           </div>
         </div>
 
+        <!-- Wallet address -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('aff.withdraw_address') }}</label>
           <input
             v-model="wdAddress"
             type="text"
-            :placeholder="$t('aff.withdraw_address')"
-            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            :placeholder="$t('aff.wallet_placeholder')"
+            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-mono bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
 
+        <!-- Password -->
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('aff.withdraw_password') }}</label>
           <input
             v-model="wdPassword"
             type="password"
-            :placeholder="$t('aff.withdraw_password')"
-            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            :placeholder="$t('aff.enter_withdraw_password')"
+            class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           />
         </div>
       </div>
@@ -438,7 +457,7 @@ async function submitWithdraw() {
         class="mt-4 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
       >
         <div v-if="wdLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-        {{ wdLoading ? $t('common.loading') : $t('aff.withdraw_submit') }}
+        {{ wdLoading ? $t('common.submitting') : $t('aff.withdraw_submit') }}
       </button>
     </div>
 
@@ -457,7 +476,7 @@ async function submitWithdraw() {
           </div>
           <div class="text-right">
             <div class="text-sm font-semibold text-green-600">+¥{{ log.commission.toFixed(2) }}</div>
-            <div class="text-xs text-gray-400 dark:text-gray-500">{{ log.status }}</div>
+            <div class="text-xs text-gray-400 dark:text-gray-500">{{ log.status === 'credited' ? $t('aff.credited') : log.status }}</div>
           </div>
         </div>
       </div>

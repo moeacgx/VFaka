@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useTheme } from './composables/useTheme'
 
 const route = useRoute()
-const { t, locale } = useI18n()
+const { locale } = useI18n()
 const { themeMode, toggleTheme } = useTheme()
 
 const isAdmin = computed(() => route.path.startsWith('/admin'))
