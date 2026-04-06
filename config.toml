@@ -1,0 +1,14 @@
+[server]
+host = "127.0.0.1"
+port = 8080
+
+[database]
+url = "sqlite:./aff_shop.db?mode=rwc"
+
+[jwt]
+secret = "change-me-in-production-use-a-long-random-string"
+expiration_hours = 24
+
+[default_admin]
+username = "admin"
+password = "admin123"
