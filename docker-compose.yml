@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./config.local.toml:/app/config.local.toml:ro
+    environment:
+      - RUST_LOG=info
+      - AFF__DATABASE__URL=sqlite:./data/aff_shop.db?mode=rwc
+    restart: unless-stopped
