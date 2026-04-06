@@ -68,7 +68,7 @@ url = "sqlite:./aff_shop.db?mode=rwc"
 secret = "your-jwt-secret-change-this"
 expiration_hours = 24
 
-[default_admin]
+[admin]
 username = "admin"
 password = "admin123"
 ```

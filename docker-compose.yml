@@ -8,6 +8,6 @@ services:
       - ./config.local.toml:/app/config.local.toml:ro
     environment:
       - RUST_LOG=info
-      - AFF__SERVER__HOST=0.0.0.0
-      - AFF__DATABASE__URL=sqlite:./data/aff_shop.db?mode=rwc
+      - AFF_SERVER_HOST=0.0.0.0
+      - AFF_DATABASE_URL=sqlite:./data/aff_shop.db?mode=rwc
     restart: unless-stopped

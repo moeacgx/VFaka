@@ -5,7 +5,7 @@ pub struct AppConfig {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub jwt: JwtConfig,
-    pub default_admin: DefaultAdminConfig,
+    pub admin: DefaultAdminConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -36,7 +36,7 @@ impl AppConfig {
         let cfg = config::Config::builder()
             .add_source(config::File::with_name("config").required(true))
             .add_source(config::File::with_name("config.local").required(false))
-            .add_source(config::Environment::with_prefix("AFF").separator("__"))
+            .add_source(config::Environment::with_prefix("AFF").separator("_"))
             .build()?;
 
         cfg.try_deserialize()

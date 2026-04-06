@@ -22,17 +22,17 @@ async fn init_default_admin(db: &DatabaseConnection, config: &AppConfig) {
     use aff_entity::entities::admin;
 
     let existing = admin::Entity::find()
-        .filter(admin::Column::Username.eq(&config.default_admin.username))
+        .filter(admin::Column::Username.eq(&config.admin.username))
         .one(db)
         .await
         .expect("Failed to query admin");
 
     if existing.is_none() {
-        let password_hash = bcrypt::hash(&config.default_admin.password, bcrypt::DEFAULT_COST)
+        let password_hash = bcrypt::hash(&config.admin.password, bcrypt::DEFAULT_COST)
             .expect("Failed to hash password");
 
         let new_admin = admin::ActiveModel {
-            username: Set(config.default_admin.username.clone()),
+            username: Set(config.admin.username.clone()),
             password_hash: Set(password_hash),
             role: Set("super_admin".to_string()),
             created_at: Set(chrono::Utc::now()),
@@ -45,7 +45,7 @@ async fn init_default_admin(db: &DatabaseConnection, config: &AppConfig) {
             .await
             .expect("Failed to create default admin");
 
-        tracing::info!("Default admin '{}' created", config.default_admin.username);
+        tracing::info!("Default admin '{}' created", config.admin.username);
     }
 }
 
