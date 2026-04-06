@@ -1,0 +1,40 @@
+# Build artifacts
+/target/
+**/target/
+
+# Dependencies
+node_modules/
+
+# Database
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Local config (contains secrets)
+config.local.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vue build output
+frontend/dist/
+
+# Rust
+**/*.rs.bk
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
