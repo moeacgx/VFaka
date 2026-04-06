@@ -1,6 +1,7 @@
 use aff_common::config::AppConfig;
 use sea_orm::{Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
+use std::sync::Arc;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 async fn init_database(config: &AppConfig) -> DatabaseConnection {
@@ -70,8 +71,11 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("Starting AFF Card Shop on {}:{}", host, port);
 
-    let db_data = actix_web::web::Data::new(db);
+    let db_data = actix_web::web::Data::new(db.clone());
     let config_data = actix_web::web::Data::new(config);
+
+    // Start order timeout cleanup task
+    aff_core::tasks::order_timeout::start_cleanup_task(Arc::new(db));
 
     actix_web::HttpServer::new(move || {
         let cors = actix_cors::Cors::default()
@@ -80,7 +84,7 @@ async fn main() -> std::io::Result<()> {
             .allow_any_header()
             .max_age(3600);
 
-        actix_web::App::new()
+        let mut app = actix_web::App::new()
             .wrap(cors)
             .wrap(tracing_actix_web::TracingLogger::default())
             .app_data(db_data.clone())
@@ -88,7 +92,29 @@ async fn main() -> std::io::Result<()> {
             .configure(aff_api::routes::configure)
             .route("/health", actix_web::web::get().to(|| async {
                 actix_web::HttpResponse::Ok().json(serde_json::json!({"status": "ok"}))
-            }))
+            }));
+
+        // Serve Vue frontend static files if dist/ exists
+        let dist_path = std::path::Path::new("frontend/dist");
+        if dist_path.exists() {
+            app = app
+                .service(actix_files::Files::new("/assets", "frontend/dist/assets"))
+                .default_service(
+                    actix_files::Files::new("/", "frontend/dist")
+                        .index_file("index.html")
+                        .default_handler(|req: actix_web::dev::ServiceRequest| {
+                            let (http_req, _) = req.into_parts();
+                            async {
+                                let response = actix_files::NamedFile::open_async("frontend/dist/index.html")
+                                    .await?
+                                    .into_response(&http_req);
+                                Ok(actix_web::dev::ServiceResponse::new(http_req, response))
+                            }
+                        }),
+                );
+        }
+
+        app
     })
     .bind((host, port))?
     .run()

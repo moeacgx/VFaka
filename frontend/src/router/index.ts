@@ -25,9 +25,14 @@ const routes = [
   {
     path: '/admin',
     component: () => import('../views/admin/Layout.vue'),
+    meta: { requiresAuth: true },
     children: [
       {
         path: '',
+        redirect: '/admin/dashboard',
+      },
+      {
+        path: 'dashboard',
         name: 'Dashboard',
         component: () => import('../views/admin/Dashboard.vue'),
       },
@@ -83,6 +88,21 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+})
+
+router.beforeEach((to, _from, next) => {
+  if (to.matched.some(r => r.meta.requiresAuth)) {
+    const token = localStorage.getItem('admin_token')
+    if (!token) {
+      next('/admin/login')
+      return
+    }
+  }
+  if (to.path === '/admin/login' && localStorage.getItem('admin_token')) {
+    next('/admin/dashboard')
+    return
+  }
+  next()
 })
 
 export default router
