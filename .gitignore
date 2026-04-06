@@ -11,6 +11,9 @@ node_modules/
 *.db-shm
 *.db-wal
 
+# Uploaded files
+data/uploads/
+
 # Local config (contains secrets)
 config.local.toml
 

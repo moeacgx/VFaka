@@ -122,6 +122,9 @@ async fn main() -> std::io::Result<()> {
     let host = config.server.host.clone();
     let port = config.server.port;
 
+    // Ensure uploads directory exists so static file serving is always registered
+    std::fs::create_dir_all("data/uploads").expect("Failed to create data/uploads directory");
+
     tracing::info!("Starting AFF Card Shop on {}:{}", host, port);
 
     let db_data = actix_web::web::Data::new(db.clone());
@@ -152,10 +155,7 @@ async fn main() -> std::io::Result<()> {
             }));
 
         // Serve uploaded files
-        let uploads_path = std::path::Path::new("data/uploads");
-        if uploads_path.exists() {
-            app = app.service(actix_files::Files::new("/uploads", "data/uploads"));
-        }
+        app = app.service(actix_files::Files::new("/uploads", "data/uploads"));
 
         // Serve Vue frontend static files if dist/ exists
         let dist_path = std::path::Path::new("frontend/dist");
