@@ -22,4 +22,7 @@ export const publicApi = {
   submitWithdrawal: (data: any) => request.post('/v1/aff/withdraw', data),
   getAffLogs: (email: string) => request.get('/v1/aff/logs', { params: { email } }),
   getAffTiers: () => request.get('/v1/aff/tiers'),
+
+  // Coupons
+  validateCoupon: (data: { code: string; product_id: number; amount: number }) => request.post('/v1/coupons/validate', data),
 }

@@ -67,7 +67,8 @@
     "admins": "管理员",
     "settings": "系统设置",
     "logout": "退出登录",
-    "admin_panel": "管理后台"
+    "admin_panel": "管理后台",
+    "coupons": "优惠码"
   },
   "auth": {
     "login": "登录",
@@ -355,5 +356,28 @@
     "zh_cn": "简体中文",
     "zh_tw": "繁體中文",
     "en": "English"
+  },
+  "coupon": {
+    "title": "优惠码管理",
+    "add": "添加优惠码",
+    "edit": "编辑优惠码",
+    "code": "优惠码",
+    "placeholder": "输入优惠码",
+    "discount_type": "折扣类型",
+    "discount_value": "折扣值",
+    "fixed": "固定金额",
+    "percentage": "百分比",
+    "product": "适用商品",
+    "global": "全部商品",
+    "min_amount": "最低消费",
+    "max_uses": "最大使用次数",
+    "unlimited": "不限",
+    "usage": "已用/上限",
+    "valid_from": "开始时间",
+    "valid_to": "截止时间",
+    "off": "折扣",
+    "save": "节省",
+    "validate_failed": "校验失败",
+    "applied": "优惠已应用"
   }
 }

@@ -23,6 +23,8 @@ pub struct Model {
     pub cards_snapshot: Option<String>,
     pub post_action_result: Option<String>,
     pub ip_address: Option<String>,
+    pub coupon_code: Option<String>,
+    pub discount_amount: f64,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

@@ -1,6 +1,7 @@
 pub mod aff;
 pub mod announcement;
 pub mod callback;
+pub mod coupon;
 pub mod order;
 pub mod product;
 
@@ -20,6 +21,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .configure(product::configure)
             .configure(callback::configure)
             .configure(announcement::configure)
+            .configure(coupon::configure)
             // Rate-limited routes
             .service(
                 web::scope("")

@@ -17,6 +17,8 @@ pub async fn create_order(
     aff_code: Option<String>,
     aff_user_email: Option<String>,
     ip_address: Option<String>,
+    coupon_code: Option<String>,
+    discount_amount: f64,
 ) -> AppResult<order::Model> {
     let now = chrono::Utc::now();
     let model = order::ActiveModel {
@@ -36,6 +38,8 @@ pub async fn create_order(
         cards_snapshot: Set(None),
         post_action_result: Set(None),
         ip_address: Set(ip_address),
+        coupon_code: Set(coupon_code),
+        discount_amount: Set(discount_amount),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -226,6 +230,8 @@ pub fn to_order_response(o: order::Model, hide_cards: bool) -> OrderResponse {
         aff_code: o.aff_code,
         cards_snapshot: if hide_cards { None } else { o.cards_snapshot },
         post_action_result: o.post_action_result,
+        coupon_code: o.coupon_code,
+        discount_amount: o.discount_amount,
         created_at: o.created_at,
         updated_at: o.updated_at,
     }

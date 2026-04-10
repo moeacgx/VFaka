@@ -55,4 +55,11 @@ export const adminApi = {
   // Settings
   getSettings: () => request.get('/admin/settings'),
   updateSettings: (data: any) => request.put('/admin/settings', data),
+
+  // Coupons
+  getCoupons: (params?: any) => request.get('/admin/coupons', { params }),
+  createCoupon: (data: any) => request.post('/admin/coupons', data),
+  updateCoupon: (id: number, data: any) => request.put(`/admin/coupons/${id}`, data),
+  deleteCoupon: (id: number) => request.delete(`/admin/coupons/${id}`),
+  batchDeleteCoupons: (ids: number[]) => request.post('/admin/coupons/batch-delete', { ids }),
 }

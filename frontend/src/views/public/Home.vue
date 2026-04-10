@@ -54,6 +54,18 @@ const paymentMethod = ref('')
 const orderLoading = ref(false)
 const orderError = ref('')
 
+// Coupon state
+const couponCode = ref('')
+const couponLoading = ref(false)
+const couponResult = ref<{
+  valid: boolean
+  discount_type?: string
+  discount_value?: number
+  discount_amount?: number
+  message?: string
+} | null>(null)
+let couponTimer: ReturnType<typeof setTimeout> | null = null
+
 const filteredProducts = computed(() => {
   if (activeCategory.value === null) return products.value
   return products.value.filter(p => p.category_id === activeCategory.value)
@@ -81,8 +93,42 @@ const availableCrypto = computed(() => {
 
 const totalPrice = computed(() => {
   if (!selectedProduct.value) return 0
+  const subtotal = selectedProduct.value.price * orderQuantity.value
+  if (couponResult.value?.valid && couponResult.value.discount_amount) {
+    return Math.max(subtotal - couponResult.value.discount_amount, 0.01)
+  }
+  return subtotal
+})
+
+const subtotalPrice = computed(() => {
+  if (!selectedProduct.value) return 0
   return selectedProduct.value.price * orderQuantity.value
 })
+
+function onCouponInput() {
+  couponResult.value = null
+  if (couponTimer) clearTimeout(couponTimer)
+  const code = couponCode.value.trim()
+  if (!code || !selectedProduct.value) return
+  couponTimer = setTimeout(() => validateCoupon(code), 500)
+}
+
+async function validateCoupon(code: string) {
+  if (!selectedProduct.value) return
+  couponLoading.value = true
+  try {
+    const res = await publicApi.validateCoupon({
+      code,
+      product_id: selectedProduct.value.id,
+      amount: selectedProduct.value.price * orderQuantity.value,
+    })
+    couponResult.value = res.data
+  } catch {
+    couponResult.value = { valid: false, message: t('coupon.validate_failed') }
+  } finally {
+    couponLoading.value = false
+  }
+}
 
 function truncate(text: string | null, len: number) {
   if (!text) return ''
@@ -96,6 +142,8 @@ function openBuyModal(product: Product) {
   paymentMethod.value = ''
   orderError.value = ''
   orderLoading.value = false
+  couponCode.value = ''
+  couponResult.value = null
   showModal.value = true
 }
 
@@ -134,6 +182,7 @@ async function submitOrder() {
       email: orderEmail.value.trim(),
       payment_method: paymentMethod.value,
       aff_code: affCode || undefined,
+      coupon_code: couponCode.value.trim() || undefined,
     })
     const data = res.data
     closeModal()
@@ -295,11 +344,39 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- Coupon Code -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">{{ $t('coupon.code') }}</label>
+            <div class="relative">
+              <input
+                v-model="couponCode"
+                type="text"
+                :placeholder="$t('coupon.placeholder')"
+                @input="onCouponInput"
+                class="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                :class="couponResult ? (couponResult.valid ? 'border-green-400 dark:border-green-500' : 'border-red-300 dark:border-red-500') : 'border-gray-200 dark:border-gray-600'"
+              />
+              <div v-if="couponLoading" class="absolute right-3 top-1/2 -translate-y-1/2">
+                <svg class="w-4 h-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              </div>
+            </div>
+            <div v-if="couponResult && couponResult.valid" class="mt-1.5 text-xs text-green-600 dark:text-green-400">
+              {{ couponResult.discount_type === 'percentage' ? `${couponResult.discount_value}% ${$t('coupon.off')}` : `¥${couponResult.discount_value?.toFixed(2)} ${$t('coupon.off')}` }}
+              · {{ $t('coupon.save') }} ¥{{ couponResult.discount_amount?.toFixed(2) }}
+            </div>
+            <div v-else-if="couponResult && !couponResult.valid" class="mt-1.5 text-xs text-red-500 dark:text-red-400">
+              {{ couponResult.message }}
+            </div>
+          </div>
+
           <!-- Total -->
           <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-5">
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-500 dark:text-gray-400">{{ $t('common.total') }}</span>
-              <span class="text-xl font-bold text-gray-900 dark:text-white">¥{{ totalPrice.toFixed(2) }}</span>
+              <div class="text-right">
+                <span v-if="couponResult?.valid && couponResult.discount_amount" class="text-sm line-through text-gray-400 mr-2">¥{{ subtotalPrice.toFixed(2) }}</span>
+                <span class="text-xl font-bold" :class="couponResult?.valid ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'">¥{{ totalPrice.toFixed(2) }}</span>
+              </div>
             </div>
           </div>
 

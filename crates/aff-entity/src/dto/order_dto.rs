@@ -8,6 +8,7 @@ pub struct CreateOrderDto {
     pub email: String,
     pub payment_method: String,
     pub aff_code: Option<String>,
+    pub coupon_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +33,8 @@ pub struct OrderResponse {
     pub aff_code: Option<String>,
     pub cards_snapshot: Option<String>,
     pub post_action_result: Option<String>,
+    pub coupon_code: Option<String>,
+    pub discount_amount: f64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

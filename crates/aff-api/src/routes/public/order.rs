@@ -7,7 +7,8 @@ use aff_common::config::AppConfig;
 use aff_common::error::{AppError, AppResult};
 use aff_common::id_gen::generate_order_no;
 use aff_core::services::{
-    aff_service, card_service, order_service, payment_config_service, product_service,
+    aff_service, card_service, coupon_service, order_service, payment_config_service,
+    product_service,
 };
 use aff_entity::dto::{CreateOrderDto, OrderQueryDto};
 use aff_payment::create_provider;
@@ -88,8 +89,28 @@ pub async fn create_order(
     // 6. Determine payment channel
     let channel = determine_channel(&dto.payment_method)?;
 
-    // 7. Calculate total
-    let total_amount = product.price * dto.quantity as f64;
+    // 7. Calculate total and apply coupon
+    let subtotal = product.price * dto.quantity as f64;
+    let mut discount_amount = 0.0;
+    let mut coupon_code_used: Option<String> = None;
+
+    if let Some(ref code) = dto.coupon_code {
+        let code = code.trim().to_uppercase();
+        if !code.is_empty() {
+            let result =
+                coupon_service::validate_coupon(db.get_ref(), &code, dto.product_id, subtotal)
+                    .await?;
+            if !result.valid {
+                return Err(AppError::BadRequest(
+                    result.message.unwrap_or_else(|| "Invalid coupon".to_string()),
+                ));
+            }
+            discount_amount = result.discount_amount.unwrap_or(0.0);
+            coupon_code_used = Some(code);
+        }
+    }
+
+    let total_amount = (subtotal - discount_amount).max(0.01);
 
     // 8. Look up aff_user email if aff_code provided
     let aff_user_email = if let Some(ref code) = dto.aff_code {
@@ -113,8 +134,17 @@ pub async fn create_order(
         dto.aff_code.clone(),
         aff_user_email,
         Some(client_ip.clone()),
+        coupon_code_used.clone(),
+        discount_amount,
     )
     .await?;
+
+    // 9b. Increment coupon usage
+    if let Some(ref code) = coupon_code_used {
+        if let Err(e) = coupon_service::use_coupon(db.get_ref(), code).await {
+            tracing::warn!(coupon_code = %code, error = %e, "Failed to increment coupon usage");
+        }
+    }
 
     // 10. Lock cards (bind to order)
     let _locked_cards = card_service::lock_cards(db.get_ref(), dto.product_id, dto.quantity, order.id).await?;

@@ -2,6 +2,7 @@ pub mod admin_service;
 pub mod aff_service;
 pub mod card_service;
 pub mod category_service;
+pub mod coupon_service;
 pub mod order_service;
 pub mod payment_config_service;
 pub mod post_action;

@@ -67,7 +67,8 @@
     "admins": "Admins",
     "settings": "Settings",
     "logout": "Logout",
-    "admin_panel": "Admin Panel"
+    "admin_panel": "Admin Panel",
+    "coupons": "Coupons"
   },
   "auth": {
     "login": "Login",
@@ -355,5 +356,28 @@
     "zh_cn": "Simplified Chinese",
     "zh_tw": "Traditional Chinese",
     "en": "English"
+  },
+  "coupon": {
+    "title": "Coupon Management",
+    "add": "Add Coupon",
+    "edit": "Edit Coupon",
+    "code": "Coupon Code",
+    "placeholder": "Enter coupon code",
+    "discount_type": "Discount Type",
+    "discount_value": "Discount Value",
+    "fixed": "Fixed Amount",
+    "percentage": "Percentage",
+    "product": "Product",
+    "global": "All Products",
+    "min_amount": "Min. Amount",
+    "max_uses": "Max Uses",
+    "unlimited": "Unlimited",
+    "usage": "Used/Limit",
+    "valid_from": "Valid From",
+    "valid_to": "Valid To",
+    "off": "off",
+    "save": "Save",
+    "validate_failed": "Validation failed",
+    "applied": "Coupon applied"
   }
 }

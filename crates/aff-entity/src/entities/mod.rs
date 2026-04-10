@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod category;
+pub mod coupon;
 pub mod product;
 pub mod card;
 pub mod order;

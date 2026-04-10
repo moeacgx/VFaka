@@ -3,6 +3,7 @@ pub mod aff;
 pub mod auth;
 pub mod card;
 pub mod category;
+pub mod coupon;
 pub mod dashboard;
 pub mod order;
 pub mod payment;
@@ -29,6 +30,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .service(product::scope().wrap(JwtAuth))
             .service(card::scope().wrap(JwtAuth))
             .service(order::scope().wrap(JwtAuth))
+            .service(coupon::scope().wrap(JwtAuth))
             .service(withdrawal::scope().wrap(JwtAuth))
             .service(aff::scope().wrap(JwtAuth))
             .service(upload::scope().wrap(JwtAuth)),
