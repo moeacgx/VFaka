@@ -67,5 +67,8 @@ async-trait = "0.1"
 actix-multipart = "0.7"
 mime_guess = "2"
 
+# S3 storage
+rust-s3 = { version = "0.37", default-features = false, features = ["tokio-rustls-tls"] }
+
 # Rate limiting
 actix-governor = "0.8"

@@ -103,7 +103,7 @@ async fn upload_to_s3(db: &DatabaseConnection, filename: &str, data: &[u8]) -> A
     let endpoint = settings_service::get_setting(db, "s3_endpoint")
         .await?
         .unwrap_or_default();
-    let bucket = settings_service::get_setting(db, "s3_bucket")
+    let bucket_name = settings_service::get_setting(db, "s3_bucket")
         .await?
         .unwrap_or_default();
     let access_key = settings_service::get_setting(db, "s3_access_key")
@@ -115,35 +115,69 @@ async fn upload_to_s3(db: &DatabaseConnection, filename: &str, data: &[u8]) -> A
     let region = settings_service::get_setting(db, "s3_region")
         .await?
         .unwrap_or_else(|| "auto".to_string());
+    let custom_domain = settings_service::get_setting(db, "s3_custom_domain")
+        .await?
+        .unwrap_or_default();
+    let path_style = settings_service::get_setting(db, "s3_path_style")
+        .await?
+        .map(|v| v == "true")
+        .unwrap_or(false);
 
-    if endpoint.is_empty() || bucket.is_empty() || access_key.is_empty() || secret_key.is_empty() {
-        return Err(AppError::BadRequest("S3 storage not configured".to_string()));
+    if endpoint.is_empty() || bucket_name.is_empty() || access_key.is_empty() || secret_key.is_empty() {
+        return Err(AppError::BadRequest("S3 storage not configured. Required: s3_endpoint, s3_bucket, s3_access_key, s3_secret_key".to_string()));
     }
 
     let content_type = mime_guess::from_path(filename)
         .first_or_octet_stream()
         .to_string();
 
-    let client = reqwest::Client::new();
+    let region: s3::Region = s3::Region::Custom {
+        region: region.into(),
+        endpoint: endpoint.trim_end_matches('/').to_string(),
+    };
 
-    // Use pre-signed URL style: PUT directly to S3-compatible endpoint
-    let url = format!("{}/{}/{}", endpoint.trim_end_matches('/'), bucket, filename);
+    let credentials = s3::creds::Credentials::new(
+        Some(&access_key),
+        Some(&secret_key),
+        None, // security_token
+        None, // session_token
+        None, // profile
+    )
+    .map_err(|e| AppError::Internal(format!("Invalid S3 credentials: {}", e)))?;
 
-    let resp = client
-        .put(&url)
-        .header("Content-Type", &content_type)
-        .header("x-amz-acl", "public-read")
-        .body(data.to_vec())
-        .send()
+    let mut bucket = s3::Bucket::new(&bucket_name, region, credentials)
+        .map_err(|e| AppError::Internal(format!("Failed to create S3 bucket handle: {}", e)))?;
+
+    if path_style {
+        bucket = bucket.with_path_style();
+    }
+
+    let response = bucket
+        .put_object_with_content_type(filename, data, &content_type)
         .await
         .map_err(|e| AppError::Internal(format!("S3 upload failed: {}", e)))?;
 
-    if !resp.status().is_success() {
-        let body = resp.text().await.unwrap_or_default();
-        return Err(AppError::Internal(format!("S3 upload error: {} - region: {}, access_key present: {}", body, region, !access_key.is_empty())));
+    if response.status_code() != 200 {
+        return Err(AppError::Internal(format!(
+            "S3 upload returned status {}: {}",
+            response.status_code(),
+            String::from_utf8_lossy(response.as_slice())
+        )));
     }
 
-    Ok(format!("{}/{}/{}", endpoint.trim_end_matches('/'), bucket, filename))
+    // Return custom domain URL if configured, otherwise construct from endpoint/bucket
+    let url = if !custom_domain.is_empty() {
+        format!("{}/{}", custom_domain.trim_end_matches('/'), filename)
+    } else {
+        format!(
+            "{}/{}/{}",
+            bucket.url().trim_end_matches('/'),
+            bucket_name,
+            filename
+        )
+    };
+
+    Ok(url)
 }
 
 pub fn scope() -> actix_web::Scope {

@@ -27,3 +27,4 @@ mime_guess = { workspace = true }
 futures-util = "0.3"
 reqwest = { workspace = true }
 actix-governor = { workspace = true }
+rust-s3 = { workspace = true }
