@@ -68,6 +68,9 @@ pub async fn create_order(
     }
 
     // 3. Quantity bounds
+    if dto.quantity < 1 {
+        return Err(AppError::BadRequest("Quantity must be at least 1".into()));
+    }
     if dto.quantity < product.min_quantity || dto.quantity > product.max_quantity {
         return Err(AppError::BadRequest(format!(
             "Quantity must be between {} and {}",
@@ -112,6 +115,13 @@ pub async fn create_order(
 
     let total_amount = (subtotal - discount_amount).max(0.01);
 
+    // Enforce minimum order amount to prevent near-free purchases
+    if total_amount < 0.10 {
+        return Err(AppError::BadRequest(
+            "Order amount too low after discount (minimum ¥0.10)".into(),
+        ));
+    }
+
     // 8. Look up aff_user email if aff_code provided
     let aff_user_email = if let Some(ref code) = dto.aff_code {
         aff_service::get_user_by_code(db.get_ref(), code)
@@ -139,11 +149,9 @@ pub async fn create_order(
     )
     .await?;
 
-    // 9b. Increment coupon usage
+    // 9b. Atomically increment coupon usage (CAS — will fail if limit reached by concurrent request)
     if let Some(ref code) = coupon_code_used {
-        if let Err(e) = coupon_service::use_coupon(db.get_ref(), code).await {
-            tracing::warn!(coupon_code = %code, error = %e, "Failed to increment coupon usage");
-        }
+        coupon_service::use_coupon(db.get_ref(), code).await?;
     }
 
     // 10. Lock cards (bind to order)

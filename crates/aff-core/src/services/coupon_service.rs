@@ -110,22 +110,25 @@ pub async fn validate_coupon(
     })
 }
 
-/// Calculate the discount amount. Ensures discount never exceeds subtotal.
+/// Calculate the discount amount. Cap at 95% of subtotal to prevent near-free orders.
 pub fn calc_discount(discount_type: &str, discount_value: f64, subtotal: f64) -> f64 {
     let raw = match discount_type {
         "percentage" => subtotal * discount_value / 100.0,
         "fixed" => discount_value,
         _ => 0.0,
     };
-    // Round to 2 decimals, never exceed subtotal, never negative
+    // Round to 2 decimals, cap at 95% of subtotal, never negative
     let d = (raw * 100.0).floor() / 100.0;
-    d.min(subtotal).max(0.0)
+    let max_discount = (subtotal * 0.95 * 100.0).floor() / 100.0;
+    d.min(max_discount).max(0.0)
 }
 
-/// Increment used_count via CAS to avoid race conditions.
+/// Atomically increment used_count with CAS guard: only succeeds if
+/// used_count < max_uses (or max_uses is NULL = unlimited).
 pub async fn use_coupon(db: &DatabaseConnection, code: &str) -> AppResult<()> {
     use sea_orm::sea_query::Expr;
 
+    // Atomic CAS: increment only when active AND (max_uses IS NULL OR used_count < max_uses)
     let result = coupon::Entity::update_many()
         .col_expr(
             coupon::Column::UsedCount,
@@ -133,12 +136,22 @@ pub async fn use_coupon(db: &DatabaseConnection, code: &str) -> AppResult<()> {
         )
         .filter(coupon::Column::Code.eq(code))
         .filter(coupon::Column::IsActive.eq(true))
+        .filter(
+            Condition::any()
+                .add(coupon::Column::MaxUses.is_null())
+                .add(
+                    Expr::col(coupon::Column::UsedCount)
+                        .lt(Expr::col(coupon::Column::MaxUses)),
+                ),
+        )
         .exec(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     if result.rows_affected == 0 {
-        return Err(AppError::BadRequest("Coupon not found or inactive".to_string()));
+        return Err(AppError::BadRequest(
+            "Coupon not found, inactive, or usage limit reached".to_string(),
+        ));
     }
     Ok(())
 }
@@ -188,9 +201,9 @@ pub async fn create_coupon(
             "discount_value must be positive".to_string(),
         ));
     }
-    if dto.discount_type == "percentage" && dto.discount_value > 100.0 {
+    if dto.discount_type == "percentage" && dto.discount_value > 95.0 {
         return Err(AppError::BadRequest(
-            "percentage discount cannot exceed 100".to_string(),
+            "percentage discount cannot exceed 95%".to_string(),
         ));
     }
 

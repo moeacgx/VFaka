@@ -282,9 +282,10 @@ pub async fn epay_notify(
         return Ok(HttpResponse::Ok().body("success"));
     }
 
-    // Amount validation (tolerance ±0.01)
+    // Amount validation: relative tolerance (2% or ¥0.01, whichever is larger)
+    let tolerance = (order.total_amount * 0.02).max(0.01);
     let amount_diff = (cb_data.amount - order.total_amount).abs();
-    if amount_diff > 0.01 {
+    if amount_diff > tolerance {
         error!(
             order_no = %cb_data.order_no,
             expected = order.total_amount,
@@ -371,9 +372,10 @@ pub async fn tokenpay_notify(
         return Ok(HttpResponse::Ok().body("ok"));
     }
 
-    // Amount validation (tolerance ±0.01)
+    // Amount validation: relative tolerance (2% or ¥0.01, whichever is larger)
+    let tolerance = (order.total_amount * 0.02).max(0.01);
     let amount_diff = (cb_data.amount - order.total_amount).abs();
-    if amount_diff > 0.01 {
+    if amount_diff > tolerance {
         error!(
             order_no = %cb_data.order_no,
             expected = order.total_amount,
