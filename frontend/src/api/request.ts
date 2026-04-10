@@ -27,6 +27,12 @@ request.interceptors.response.use(
         window.location.href = '/admin/login'
       }
     }
+    if (error.response?.status === 403) {
+      if (window.location.pathname.startsWith('/admin')) {
+        alert(error.response?.data?.message || 'Permission denied')
+        window.location.href = '/admin/dashboard'
+      }
+    }
     return Promise.reject(error)
   }
 )

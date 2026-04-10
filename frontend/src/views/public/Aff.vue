@@ -36,7 +36,7 @@ interface AffLog {
 }
 
 // Section 1: Balance query
-const queryEmail = ref('')
+const queryCode = ref('')
 const affInfo = ref<AffInfo | null>(null)
 const queryLoading = ref(false)
 const queryError = ref('')
@@ -98,8 +98,8 @@ async function copyLink() {
 }
 
 async function queryBalance() {
-  if (!queryEmail.value.trim()) {
-    queryError.value = t('common.enter_email_required')
+  if (!queryCode.value.trim()) {
+    queryError.value = t('aff.enter_code_required')
     return
   }
   queryLoading.value = true
@@ -109,7 +109,7 @@ async function queryBalance() {
 
   try {
     const [res, tiersRes] = await Promise.all([
-      publicApi.queryAff(queryEmail.value.trim()),
+      publicApi.queryAff(queryCode.value.trim()),
       publicApi.getAffTiers(),
     ])
     affInfo.value = res.data
@@ -120,7 +120,6 @@ async function queryBalance() {
     const status = e.response?.status
     if (status === 404) {
       notRegistered.value = true
-      regEmail.value = queryEmail.value.trim()
     } else {
       queryError.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
     }
@@ -133,7 +132,7 @@ async function loadLogs() {
   if (!affInfo.value) return
   logsLoading.value = true
   try {
-    const res = await publicApi.getAffLogs(affInfo.value.email)
+    const res = await publicApi.getAffLogs(affInfo.value.aff_code)
     affLogs.value = res.data
   } catch {
     // silent
@@ -169,8 +168,8 @@ async function register() {
       withdraw_password: regPassword.value,
     })
     regSuccess.value = res.data
-    // Auto-query after registration
-    queryEmail.value = regEmail.value.trim()
+    // Auto-query by the new AFF code after registration
+    queryCode.value = res.data.aff_code
     notRegistered.value = false
     await queryBalance()
   } catch (e: any) {
@@ -233,9 +232,9 @@ async function submitWithdraw() {
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('aff.title') }}</h2>
       <div class="flex gap-3">
         <input
-          v-model="queryEmail"
-          type="email"
-          :placeholder="$t('aff.email_placeholder')"
+          v-model="queryCode"
+          type="text"
+          :placeholder="$t('aff.code_placeholder')"
           @keyup.enter="queryBalance"
           class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
         />

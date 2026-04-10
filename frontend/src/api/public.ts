@@ -13,14 +13,14 @@ export const publicApi = {
 
   // Orders
   createOrder: (data: any) => request.post('/v1/orders', data),
-  queryOrders: (email: string) => request.get('/v1/orders/query', { params: { email } }),
-  getOrder: (orderNo: string, email: string) => request.get(`/v1/orders/${orderNo}`, { params: { email } }),
+  getOrder: (orderNo: string, params: { token?: string; email?: string }) =>
+    request.get(`/v1/orders/${orderNo}`, { params }),
 
   // AFF
   registerAff: (data: any) => request.post('/v1/aff/register', data),
-  queryAff: (email: string) => request.get('/v1/aff/query', { params: { email } }),
+  queryAff: (code: string) => request.get('/v1/aff/query', { params: { code } }),
   submitWithdrawal: (data: any) => request.post('/v1/aff/withdraw', data),
-  getAffLogs: (email: string) => request.get('/v1/aff/logs', { params: { email } }),
+  getAffLogs: (code: string) => request.get('/v1/aff/logs', { params: { code } }),
   getAffTiers: () => request.get('/v1/aff/tiers'),
 
   // Coupons

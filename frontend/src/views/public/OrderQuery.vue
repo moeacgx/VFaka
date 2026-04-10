@@ -21,20 +21,23 @@ interface Order {
   aff_code: string | null
   cards_snapshot: string | null
   post_action_result: string | null
+  post_action_status: string | null
   created_at: string
   updated_at: string
 }
 
 const route = useRoute()
 
-const email = ref('')
-const emailInput = ref<HTMLInputElement | null>(null)
-const orderNoFromUrl = ref('')
+const orderNo = ref('')
+const queryToken = ref('')
+const orderNoInput = ref<HTMLInputElement | null>(null)
+const tokenInput = ref<HTMLInputElement | null>(null)
 const orders = ref<Order[]>([])
 const loading = ref(false)
 const error = ref('')
 const searched = ref(false)
 const expandedOrder = ref<string | null>(null)
+const autoQueried = ref(false)
 
 const statusMap = computed<Record<string, { label: string; class: string }>>(() => ({
   pending: { label: t('order.status.pending'), class: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
@@ -56,9 +59,13 @@ function toggleExpand(orderNo: string) {
   expandedOrder.value = expandedOrder.value === orderNo ? null : orderNo
 }
 
-async function queryByEmail() {
-  if (!email.value.trim()) {
-    error.value = t('common.enter_email_required')
+async function queryOrder() {
+  if (!orderNo.value.trim()) {
+    error.value = t('order.enter_order_no_required')
+    return
+  }
+  if (!queryToken.value.trim()) {
+    error.value = t('order.enter_token_required')
     return
   }
   loading.value = true
@@ -66,30 +73,7 @@ async function queryByEmail() {
   searched.value = true
 
   try {
-    // If we have an order_no from URL, query that specific order
-    if (orderNoFromUrl.value) {
-      const res = await publicApi.getOrder(orderNoFromUrl.value, email.value.trim())
-      orders.value = [res.data]
-    } else {
-      const res = await publicApi.queryOrders(email.value.trim())
-      orders.value = res.data
-    }
-  } catch (e: any) {
-    error.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
-    orders.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-async function querySingleOrder(orderNo: string, orderEmail: string) {
-  email.value = orderEmail
-  loading.value = true
-  error.value = ''
-  searched.value = true
-
-  try {
-    const res = await publicApi.getOrder(orderNo, orderEmail)
+    const res = await publicApi.getOrder(orderNo.value.trim(), { token: queryToken.value.trim() })
     orders.value = [res.data]
   } catch (e: any) {
     error.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
@@ -101,12 +85,19 @@ async function querySingleOrder(orderNo: string, orderEmail: string) {
 
 onMounted(() => {
   const no = route.query.no as string | undefined
-  const em = route.query.email as string | undefined
-  if (no && em) {
-    querySingleOrder(no, em)
+  const token = route.query.token as string | undefined
+  if (no && token) {
+    // Auto-query with token (e.g., from payment return)
+    orderNo.value = no
+    queryToken.value = token
+    autoQueried.value = true
+    queryOrder()
   } else if (no) {
-    orderNoFromUrl.value = no
-    nextTick(() => emailInput.value?.focus())
+    // Pre-fill order number, focus token input
+    orderNo.value = no
+    nextTick(() => tokenInput.value?.focus())
+  } else {
+    nextTick(() => orderNoInput.value?.focus())
   }
 })
 </script>
@@ -116,26 +107,36 @@ onMounted(() => {
     <!-- Search -->
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none p-6 mb-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('order.query_title') }}</h2>
-      <p v-if="orderNoFromUrl" class="text-sm text-blue-600 dark:text-blue-400 mb-3">
-        {{ $t('order.enter_email_for_order') }} <span class="font-mono">{{ orderNoFromUrl }}</span>
-      </p>
-      <div class="flex gap-3">
+      <div v-if="autoQueried && orders.length > 0" class="text-sm text-green-600 dark:text-green-400 mb-3">
+        {{ $t('order.auto_query_success') }}
+      </div>
+      <div class="space-y-3">
         <input
-          ref="emailInput"
-          v-model="email"
-          type="email"
-          :placeholder="orderNoFromUrl ? $t('order.enter_email_hint') : $t('order.query_hint')"
-          @keyup.enter="queryByEmail"
-          class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          ref="orderNoInput"
+          v-model="orderNo"
+          type="text"
+          :placeholder="$t('order.enter_order_no')"
+          @keyup.enter="tokenInput?.focus()"
+          class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
         />
-        <button
-          @click="queryByEmail"
-          :disabled="loading"
-          class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-        >
-          <div v-if="loading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-          {{ $t('order.query_button') }}
-        </button>
+        <div class="flex gap-3">
+          <input
+            ref="tokenInput"
+            v-model="queryToken"
+            type="text"
+            :placeholder="$t('order.enter_token')"
+            @keyup.enter="queryOrder"
+            class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          />
+          <button
+            @click="queryOrder"
+            :disabled="loading"
+            class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+          >
+            <div v-if="loading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            {{ $t('order.query_button') }}
+          </button>
+        </div>
       </div>
       <p v-if="error" class="text-red-500 text-sm mt-3">{{ error }}</p>
     </div>

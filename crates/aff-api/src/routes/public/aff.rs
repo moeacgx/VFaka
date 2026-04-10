@@ -7,8 +7,8 @@ use aff_entity::dto::{AffRegisterDto, AffWithdrawDto};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-pub struct AffEmailQuery {
-    pub email: String,
+pub struct AffCodeQuery {
+    pub code: String,
 }
 
 pub async fn register(
@@ -34,13 +34,13 @@ pub async fn register(
 
 pub async fn query(
     db: web::Data<DatabaseConnection>,
-    query: web::Query<AffEmailQuery>,
+    query: web::Query<AffCodeQuery>,
 ) -> AppResult<HttpResponse> {
-    if query.email.is_empty() {
-        return Err(AppError::BadRequest("Email is required".into()));
+    if query.code.is_empty() {
+        return Err(AppError::BadRequest("AFF code is required".into()));
     }
 
-    let resp = aff_service::query_by_email(db.get_ref(), &query.email).await?;
+    let resp = aff_service::query_by_code(db.get_ref(), &query.code).await?;
 
     Ok(HttpResponse::Ok().json(resp))
 }
@@ -90,13 +90,13 @@ pub async fn withdraw(
 
 pub async fn logs(
     db: web::Data<DatabaseConnection>,
-    query: web::Query<AffEmailQuery>,
+    query: web::Query<AffCodeQuery>,
 ) -> AppResult<HttpResponse> {
-    if query.email.is_empty() {
-        return Err(AppError::BadRequest("Email is required".into()));
+    if query.code.is_empty() {
+        return Err(AppError::BadRequest("AFF code is required".into()));
     }
 
-    let logs = aff_service::get_logs(db.get_ref(), &query.email).await?;
+    let logs = aff_service::get_logs_by_code(db.get_ref(), &query.code).await?;
 
     Ok(HttpResponse::Ok().json(logs))
 }

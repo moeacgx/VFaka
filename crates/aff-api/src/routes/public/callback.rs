@@ -154,9 +154,12 @@ async fn do_delivery(
             &product_model.post_pay_action_value,
         ) {
             if !action_type.is_empty() && !action_value.is_empty() {
+                // Mark post action as pending
+                let _ = order_service::set_post_action_result(db, order_no, "pending", "pending").await;
+
                 match post_action::execute_post_action(action_type, action_value, &order, Some(config)).await {
                     Ok(result) => {
-                        let _ = order_service::set_post_action_result(db, order_no, &result).await;
+                        let _ = order_service::set_post_action_result(db, order_no, &result, "success").await;
                     }
                     Err(e) => {
                         error!(order_no = %order_no, "Post-pay action failed: {}", e);
@@ -164,6 +167,7 @@ async fn do_delivery(
                             db,
                             order_no,
                             &format!("ERROR: {}", e),
+                            "failed",
                         )
                         .await;
                     }
@@ -397,6 +401,7 @@ pub async fn tokenpay_notify(
 }
 
 pub async fn epay_return(
+    db: web::Data<DatabaseConnection>,
     req: HttpRequest,
     config: web::Data<AppConfig>,
 ) -> HttpResponse {
@@ -411,7 +416,21 @@ pub async fn epay_return(
         .unwrap_or_default();
 
     let base_url = config.get_public_base_url();
-    let redirect_url = format!("{}/order?no={}", base_url, order_no);
+
+    // Look up query_token to build secure redirect URL
+    let token_param = if !order_no.is_empty() {
+        match order_service::get_order_by_no(db.get_ref(), &order_no).await {
+            Ok(Some(order)) => order
+                .query_token
+                .map(|t| format!("&token={}", t))
+                .unwrap_or_default(),
+            _ => String::new(),
+        }
+    } else {
+        String::new()
+    };
+
+    let redirect_url = format!("{}/order?no={}{}", base_url, order_no, token_param);
 
     HttpResponse::Found()
         .append_header(("Location", redirect_url))

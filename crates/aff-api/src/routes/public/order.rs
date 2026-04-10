@@ -10,7 +10,7 @@ use aff_core::services::{
     aff_service, card_service, coupon_service, order_service, payment_config_service,
     product_service,
 };
-use aff_entity::dto::{CreateOrderDto, OrderQueryDto};
+use aff_entity::dto::CreateOrderDto;
 use aff_payment::create_provider;
 use aff_payment::provider::PaymentRequest;
 
@@ -208,59 +208,57 @@ pub async fn create_order(
         "order_no": order_no,
         "payment_url": pay_resp.pay_url,
         "qr_code": pay_resp.qr_code,
+        "query_token": order.query_token,
     })))
 }
 
 #[derive(Debug, Deserialize)]
-pub struct OrderStatusQuery {
-    pub email: String,
+pub struct OrderTokenQuery {
+    pub token: Option<String>,
+    pub email: Option<String>,
 }
 
 pub async fn get_order_status(
     db: web::Data<DatabaseConnection>,
     path: web::Path<String>,
-    query: web::Query<OrderStatusQuery>,
+    query: web::Query<OrderTokenQuery>,
 ) -> AppResult<HttpResponse> {
     let order_no = path.into_inner();
 
     let order = order_service::get_order_by_no(db.get_ref(), &order_no)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("Order {} not found", order_no)))?;
+        .ok_or_else(|| AppError::NotFound("Order not found".into()))?;
 
-    // Verify email
-    if order.email != query.email {
+    // Token-based auth (primary for new orders)
+    if let Some(ref token) = query.token {
+        if let Some(ref order_token) = order.query_token {
+            if token == order_token {
+                let hide_cards = order.status != "delivered";
+                let resp = order_service::to_order_response(order, hide_cards);
+                return Ok(HttpResponse::Ok().json(resp));
+            }
+        }
         return Err(AppError::NotFound("Order not found".into()));
     }
 
-    // Only show cards if delivered
-    let hide_cards = order.status != "delivered";
-    let resp = order_service::to_order_response(order, hide_cards);
-
-    Ok(HttpResponse::Ok().json(resp))
-}
-
-pub async fn query_orders(
-    db: web::Data<DatabaseConnection>,
-    query: web::Query<OrderQueryDto>,
-) -> AppResult<HttpResponse> {
-    if query.email.is_empty() {
-        return Err(AppError::BadRequest("Email is required".into()));
+    // Email fallback (legacy: only for old orders without query_token)
+    if let Some(ref email) = query.email {
+        if order.query_token.is_some() {
+            // New order with token — don't allow email-only access
+            return Err(AppError::BadRequest("Token required for this order".into()));
+        }
+        if &order.email != email {
+            return Err(AppError::NotFound("Order not found".into()));
+        }
+        let hide_cards = order.status != "delivered";
+        let resp = order_service::to_order_response(order, hide_cards);
+        return Ok(HttpResponse::Ok().json(resp));
     }
 
-    let orders = order_service::list_orders_by_email(db.get_ref(), &query.email).await?;
-    let responses: Vec<_> = orders
-        .into_iter()
-        .map(|o| {
-            let hide = o.status != "delivered";
-            order_service::to_order_response(o, hide)
-        })
-        .collect();
-
-    Ok(HttpResponse::Ok().json(responses))
+    Err(AppError::BadRequest("Token or email required".into()))
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/orders", web::post().to(create_order))
-        .route("/orders/query", web::get().to(query_orders))
         .route("/orders/{order_no}", web::get().to(get_order_status));
 }

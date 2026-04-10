@@ -2,6 +2,7 @@ use sea_orm::*;
 use std::collections::HashMap;
 
 use aff_common::error::{AppError, AppResult};
+use aff_common::id_gen::generate_query_token;
 use aff_entity::dto::OrderResponse;
 use aff_entity::entities::{order, product};
 
@@ -21,6 +22,7 @@ pub async fn create_order(
     discount_amount: f64,
 ) -> AppResult<order::Model> {
     let now = chrono::Utc::now();
+    let query_token = generate_query_token();
     let model = order::ActiveModel {
         order_no: Set(order_no),
         product_id: Set(product_id),
@@ -37,9 +39,11 @@ pub async fn create_order(
         aff_commission: Set(0.0),
         cards_snapshot: Set(None),
         post_action_result: Set(None),
+        post_action_status: Set(None),
         ip_address: Set(ip_address),
         coupon_code: Set(coupon_code),
         discount_amount: Set(discount_amount),
+        query_token: Set(Some(query_token)),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -161,6 +165,7 @@ pub async fn set_post_action_result(
     db: &DatabaseConnection,
     order_no: &str,
     result: &str,
+    status: &str,
 ) -> AppResult<()> {
     let o = order::Entity::find()
         .filter(order::Column::OrderNo.eq(order_no))
@@ -171,6 +176,7 @@ pub async fn set_post_action_result(
 
     let mut model: order::ActiveModel = o.into();
     model.post_action_result = Set(Some(result.to_string()));
+    model.post_action_status = Set(Some(status.to_string()));
     model.updated_at = Set(chrono::Utc::now());
     model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(())
@@ -230,8 +236,10 @@ pub fn to_order_response(o: order::Model, hide_cards: bool) -> OrderResponse {
         aff_code: o.aff_code,
         cards_snapshot: if hide_cards { None } else { o.cards_snapshot },
         post_action_result: o.post_action_result,
+        post_action_status: o.post_action_status,
         coupon_code: o.coupon_code,
         discount_amount: o.discount_amount,
+        query_token: None, // Never leak query_token in general responses
         created_at: o.created_at,
         updated_at: o.updated_at,
     }

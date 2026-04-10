@@ -25,6 +25,8 @@ pub struct Model {
     pub ip_address: Option<String>,
     pub coupon_code: Option<String>,
     pub discount_amount: f64,
+    pub query_token: Option<String>,
+    pub post_action_status: Option<String>,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

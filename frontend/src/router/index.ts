@@ -65,6 +65,7 @@ const routes = [
         path: 'payment',
         name: 'PaymentConfig',
         component: () => import('../views/admin/PaymentConfig.vue'),
+        meta: { requiresSuperAdmin: true },
       },
       {
         path: 'aff',
@@ -80,11 +81,13 @@ const routes = [
         path: 'admins',
         name: 'Admins',
         component: () => import('../views/admin/Admins.vue'),
+        meta: { requiresSuperAdmin: true },
       },
       {
         path: 'settings',
         name: 'Settings',
         component: () => import('../views/admin/Settings.vue'),
+        meta: { requiresSuperAdmin: true },
       },
     ],
   },
@@ -95,12 +98,32 @@ const router = createRouter({
   routes,
 })
 
+function getAdminRole(): string {
+  const token = localStorage.getItem('admin_token')
+  if (!token) return 'admin'
+  try {
+    const payload = token.split('.')[1]
+    const decoded = JSON.parse(atob(payload))
+    return decoded.role || 'admin'
+  } catch {
+    return 'admin'
+  }
+}
+
 router.beforeEach((to, _from, next) => {
   if (to.matched.some(r => r.meta.requiresAuth)) {
     const token = localStorage.getItem('admin_token')
     if (!token) {
       next('/admin/login')
       return
+    }
+    // Check super_admin guard
+    if (to.matched.some(r => r.meta.requiresSuperAdmin)) {
+      const role = getAdminRole()
+      if (role !== 'super_admin') {
+        next('/admin/dashboard')
+        return
+      }
     }
   }
   if (to.path === '/admin/login' && localStorage.getItem('admin_token')) {

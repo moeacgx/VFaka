@@ -33,8 +33,10 @@ pub struct OrderResponse {
     pub aff_code: Option<String>,
     pub cards_snapshot: Option<String>,
     pub post_action_result: Option<String>,
+    pub post_action_status: Option<String>,
     pub coupon_code: Option<String>,
     pub discount_amount: f64,
+    pub query_token: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

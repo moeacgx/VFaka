@@ -51,6 +51,20 @@ pub async fn register(
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
+pub async fn query_by_code(
+    db: &DatabaseConnection,
+    aff_code: &str,
+) -> AppResult<AffQueryResponse> {
+    let user = aff_user::Entity::find()
+        .filter(aff_user::Column::AffCode.eq(aff_code))
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("AFF user not found".into()))?;
+
+    build_query_response(db, user).await
+}
+
 pub async fn query_by_email(
     db: &DatabaseConnection,
     email: &str,
@@ -61,6 +75,14 @@ pub async fn query_by_email(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound("AFF user not found".into()))?;
+
+    build_query_response(db, user).await
+}
+
+async fn build_query_response(
+    db: &DatabaseConnection,
+    user: aff_user::Model,
+) -> AppResult<AffQueryResponse> {
 
     let tiers = list_tiers(db).await?;
 
@@ -274,6 +296,25 @@ pub async fn get_logs(
 ) -> AppResult<Vec<aff_log::Model>> {
     let user = aff_user::Entity::find()
         .filter(aff_user::Column::Email.eq(email))
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("AFF user not found".into()))?;
+
+    aff_log::Entity::find()
+        .filter(aff_log::Column::AffUserId.eq(user.id))
+        .order_by_desc(aff_log::Column::CreatedAt)
+        .all(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+pub async fn get_logs_by_code(
+    db: &DatabaseConnection,
+    aff_code: &str,
+) -> AppResult<Vec<aff_log::Model>> {
+    let user = aff_user::Entity::find()
+        .filter(aff_user::Column::AffCode.eq(aff_code))
         .one(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?

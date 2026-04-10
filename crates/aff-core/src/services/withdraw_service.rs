@@ -1,4 +1,5 @@
 use sea_orm::*;
+use sea_orm::sea_query::Expr;
 
 use aff_common::error::{AppError, AppResult};
 use aff_entity::dto::AffWithdrawDto;
@@ -10,6 +11,7 @@ pub async fn create_withdrawal(
     db: &DatabaseConnection,
     dto: AffWithdrawDto,
 ) -> AppResult<withdrawal::Model> {
+    // Pre-validate outside transaction (read-only checks)
     let user = aff_user::Entity::find()
         .filter(aff_user::Column::Email.eq(&dto.email))
         .one(db)
@@ -43,7 +45,7 @@ pub async fn create_withdrawal(
         )));
     }
 
-    // Check balance
+    // Early balance check (authoritative check is CAS inside txn)
     if user.balance < dto.amount {
         return Err(AppError::BadRequest(format!(
             "Insufficient balance: available {:.2}, requested {:.2}",
@@ -51,16 +53,37 @@ pub async fn create_withdrawal(
         )));
     }
 
-    // Deduct balance
-    let new_balance = user.balance - dto.amount;
-    let new_withdrawn = user.total_withdrawn + dto.amount;
     let user_id = user.id;
-    let mut user_model: aff_user::ActiveModel = user.into();
-    user_model.balance = Set(new_balance);
-    user_model.total_withdrawn = Set(new_withdrawn);
-    user_model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // Create withdrawal
+    // Transaction: CAS balance deduction + withdrawal insertion
+    let txn = db.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // CAS: only deduct if balance >= requested amount (prevents concurrent overdraft)
+    let update_result = aff_user::Entity::update_many()
+        .col_expr(
+            aff_user::Column::Balance,
+            Expr::col(aff_user::Column::Balance).sub(dto.amount),
+        )
+        .col_expr(
+            aff_user::Column::TotalWithdrawn,
+            Expr::col(aff_user::Column::TotalWithdrawn).add(dto.amount),
+        )
+        .filter(aff_user::Column::Id.eq(user_id))
+        .filter(Expr::col(aff_user::Column::Balance).gte(dto.amount))
+        .exec(&txn)
+        .await
+        .map_err(|e| {
+            AppError::Internal(format!("Balance deduction failed: {}", e))
+        })?;
+
+    if update_result.rows_affected == 0 {
+        txn.rollback().await.ok();
+        return Err(AppError::BadRequest(
+            "Insufficient balance (concurrent withdrawal detected)".into(),
+        ));
+    }
+
+    // Insert withdrawal record inside the same transaction
     let now = chrono::Utc::now();
     let model = withdrawal::ActiveModel {
         aff_user_id: Set(user_id),
@@ -76,8 +99,17 @@ pub async fn create_withdrawal(
         ..Default::default()
     };
 
-    withdrawal::Entity::insert(model)
-        .exec_with_returning(db)
+    let withdrawal = withdrawal::Entity::insert(model)
+        .exec_with_returning(&txn)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))
+        .map_err(|e| {
+            AppError::Internal(format!("Withdrawal record creation failed: {}", e))
+        })?;
+
+    // Commit: both balance deduction and withdrawal record persist atomically
+    txn.commit().await.map_err(|e| {
+        AppError::Internal(format!("Transaction commit failed: {}", e))
+    })?;
+
+    Ok(withdrawal)
 }

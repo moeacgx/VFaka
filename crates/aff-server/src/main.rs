@@ -132,7 +132,7 @@ async fn main() -> std::io::Result<()> {
     let config_data = actix_web::web::Data::new(config);
 
     // Start order timeout cleanup task
-    aff_core::tasks::order_timeout::start_cleanup_task(Arc::new(db));
+    aff_core::tasks::order_timeout::start_cleanup_task(Arc::new(db), Arc::new(config_clone.clone()));
 
     actix_web::HttpServer::new(move || {
         let origins = config_clone.get_allowed_origins();

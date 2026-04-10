@@ -189,7 +189,7 @@ async function submitOrder() {
     if (data.payment_url) {
       window.location.href = data.payment_url
     } else {
-      router.push({ path: '/order', query: { no: data.order_no, email: orderEmail.value.trim() } })
+      router.push({ path: '/order', query: { no: data.order_no, token: data.query_token } })
     }
   } catch (e: any) {
     orderError.value = e.response?.data?.message || e.response?.data?.error || t('product.create_order_failed')

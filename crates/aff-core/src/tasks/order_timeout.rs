@@ -1,12 +1,14 @@
 use sea_orm::*;
 use std::sync::Arc;
 
-use aff_entity::entities::{card, order};
+use aff_common::config::AppConfig;
+use aff_entity::entities::{card, order, product};
 
 /// Cleanup expired pending orders (15 min timeout).
 /// Also recover orders stuck in "processing" for >5 min (rollback to "paid").
 /// Releases locked cards back to available for expired orders.
-pub async fn cleanup_expired_orders(db: &DatabaseConnection) {
+/// Retries failed post-pay actions (max 3 attempts).
+pub async fn cleanup_expired_orders(db: &DatabaseConnection, config: &AppConfig) {
     let pending_cutoff = chrono::Utc::now() - chrono::Duration::minutes(15);
     let processing_cutoff = chrono::Utc::now() - chrono::Duration::minutes(5);
 
@@ -78,7 +80,6 @@ pub async fn cleanup_expired_orders(db: &DatabaseConnection) {
                 .await
                 .unwrap_or(0);
 
-            use aff_entity::entities::product;
             if let Ok(Some(p)) = product::Entity::find_by_id(pid).one(db).await {
                 let mut am: product::ActiveModel = p.into();
                 am.stock_count = Set(count as i32);
@@ -88,15 +89,105 @@ pub async fn cleanup_expired_orders(db: &DatabaseConnection) {
 
         tracing::info!("Cleaned up {} expired orders", expired.len());
     }
+
+    // Retry failed post-pay actions (max 3 attempts)
+    retry_failed_post_actions(db, config).await;
+}
+
+/// Retry orders with post_action_status = "failed", up to 3 attempts.
+async fn retry_failed_post_actions(db: &DatabaseConnection, config: &AppConfig) {
+    let failed_orders = order::Entity::find()
+        .filter(order::Column::Status.eq("delivered"))
+        .filter(order::Column::PostActionStatus.eq("failed"))
+        .all(db)
+        .await;
+
+    let failed_orders = match failed_orders {
+        Ok(orders) => orders,
+        Err(_) => return,
+    };
+
+    for o in &failed_orders {
+        // Count retries from post_action_result prefix
+        let retry_count = o
+            .post_action_result
+            .as_deref()
+            .unwrap_or("")
+            .matches("[RETRY")
+            .count();
+
+        if retry_count >= 3 {
+            continue; // Max retries reached
+        }
+
+        let product_model = product::Entity::find_by_id(o.product_id)
+            .one(db)
+            .await
+            .ok()
+            .flatten();
+
+        if let Some(product_model) = product_model {
+            if let (Some(action_type), Some(action_value)) = (
+                &product_model.post_pay_action_type,
+                &product_model.post_pay_action_value,
+            ) {
+                if !action_type.is_empty() && !action_value.is_empty() {
+                    tracing::info!(
+                        order_no = %o.order_no,
+                        retry = retry_count + 1,
+                        "Retrying failed post-pay action"
+                    );
+
+                    match crate::services::post_action::execute_post_action(
+                        action_type,
+                        action_value,
+                        o,
+                        Some(config),
+                    )
+                    .await
+                    {
+                        Ok(result) => {
+                            let mut am: order::ActiveModel = o.clone().into();
+                            am.post_action_result =
+                                Set(Some(format!("[RETRY {}] {}", retry_count + 1, result)));
+                            am.post_action_status = Set(Some("success".to_string()));
+                            am.updated_at = Set(chrono::Utc::now());
+                            let _ = am.update(db).await;
+                            tracing::info!(
+                                order_no = %o.order_no,
+                                "Post-pay action retry succeeded"
+                            );
+                        }
+                        Err(e) => {
+                            let mut am: order::ActiveModel = o.clone().into();
+                            am.post_action_result = Set(Some(format!(
+                                "[RETRY {}] ERROR: {}",
+                                retry_count + 1,
+                                e
+                            )));
+                            am.updated_at = Set(chrono::Utc::now());
+                            let _ = am.update(db).await;
+                            tracing::warn!(
+                                order_no = %o.order_no,
+                                "Post-pay action retry {} failed: {}",
+                                retry_count + 1,
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Start the background cleanup loop (runs every 60 seconds)
-pub fn start_cleanup_task(db: Arc<DatabaseConnection>) {
+pub fn start_cleanup_task(db: Arc<DatabaseConnection>, config: Arc<AppConfig>) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
         loop {
             interval.tick().await;
-            cleanup_expired_orders(&db).await;
+            cleanup_expired_orders(&db, &config).await;
         }
     });
 }
