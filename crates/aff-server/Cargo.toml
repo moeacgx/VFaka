@@ -7,11 +7,16 @@ edition = "2021"
 name = "aff-server"
 path = "src/main.rs"
 
+[features]
+default = ["sqlite"]
+sqlite = ["aff-entity/sqlite", "aff-core/sqlite", "aff-api/sqlite", "sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite"]
+postgres = ["aff-entity/postgres", "aff-core/postgres", "aff-api/postgres", "sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+
 [dependencies]
 aff-common = { path = "../aff-common" }
-aff-entity = { path = "../aff-entity" }
-aff-core = { path = "../aff-core" }
-aff-api = { path = "../aff-api" }
+aff-entity = { path = "../aff-entity", default-features = false }
+aff-core = { path = "../aff-core", default-features = false }
+aff-api = { path = "../aff-api", default-features = false }
 actix-web = { workspace = true }
 actix-rt = { workspace = true }
 actix-cors = { workspace = true }

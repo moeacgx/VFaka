@@ -3,6 +3,11 @@ name = "aff-entity"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["sqlite"]
+sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite"]
+postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+
 [dependencies]
 aff-common = { path = "../aff-common" }
 sea-orm = { workspace = true }

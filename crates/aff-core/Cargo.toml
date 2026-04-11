@@ -3,9 +3,14 @@ name = "aff-core"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["sqlite"]
+sqlite = ["aff-entity/sqlite"]
+postgres = ["aff-entity/postgres"]
+
 [dependencies]
 aff-common = { path = "../aff-common" }
-aff-entity = { path = "../aff-entity" }
+aff-entity = { path = "../aff-entity", default-features = false }
 aff-payment = { path = "../aff-payment" }
 sea-orm = { workspace = true }
 serde = { workspace = true }

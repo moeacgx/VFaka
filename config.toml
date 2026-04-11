@@ -8,7 +8,10 @@ port = 8080
 # allowed_origins = ["https://your-domain.com", "https://www.your-domain.com"]
 
 [database]
+# SQLite (default)
 url = "sqlite:./aff_shop.db?mode=rwc"
+# PostgreSQL — build with --features postgres --no-default-features
+# url = "postgres://user:password@localhost:5432/aff_shop"
 
 [jwt]
 # IMPORTANT: Change this to a long random string before deploying!

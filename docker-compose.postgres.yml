@@ -1,0 +1,30 @@
+# PostgreSQL override — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aff
+      POSTGRES_PASSWORD: aff_secret
+      POSTGRES_DB: aff_shop
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      args:
+        DB_BACKEND: postgres
+    environment:
+      - RUST_LOG=info
+      - AFF_SERVER_HOST=0.0.0.0
+      - AFF_DATABASE_URL=postgres://aff:aff_secret@postgres:5432/aff_shop
+    depends_on:
+      - postgres
+      - tokenpay
+
+volumes:
+  pgdata:

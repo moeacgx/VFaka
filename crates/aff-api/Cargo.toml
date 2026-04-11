@@ -3,10 +3,15 @@ name = "aff-api"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["sqlite"]
+sqlite = ["aff-entity/sqlite", "aff-core/sqlite"]
+postgres = ["aff-entity/postgres", "aff-core/postgres"]
+
 [dependencies]
 aff-common = { path = "../aff-common" }
-aff-entity = { path = "../aff-entity" }
-aff-core = { path = "../aff-core" }
+aff-entity = { path = "../aff-entity", default-features = false }
+aff-core = { path = "../aff-core", default-features = false }
 aff-payment = { path = "../aff-payment" }
 aff-notify = { path = "../aff-notify" }
 actix-web = { workspace = true }

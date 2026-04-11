@@ -22,6 +22,8 @@
 
 ### Docker 部署 (推荐)
 
+#### SQLite (默认)
+
 ```bash
 # 1. 创建配置文件
 cp config.toml config.local.toml
@@ -44,6 +46,19 @@ docker compose up -d app
 docker compose logs -f
 ```
 
+#### PostgreSQL
+
+```bash
+# 使用 PostgreSQL compose overlay
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+
+# 修改数据库密码: 编辑 docker-compose.postgres.yml 中的
+#   POSTGRES_PASSWORD 和 AFF_DATABASE_URL
+
+# 查看日志
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml logs -f
+```
+
 ### 本地开发
 
 **环境要求:** Rust 1.88+, Node.js 18+, pnpm
@@ -52,8 +67,11 @@ docker compose logs -f
 # 1. 构建前端
 cd frontend && pnpm install && pnpm run build && cd ..
 
-# 2. 运行服务器
+# 2. 运行服务器 (默认 SQLite)
 cargo run
+
+# 使用 PostgreSQL
+cargo run --features postgres --no-default-features
 ```
 
 服务器启动在 `http://127.0.0.1:8080`
@@ -79,7 +97,10 @@ port = 8080
 # allowed_origins = ["https://your-domain.com"]
 
 [database]
+# SQLite (default)
 url = "sqlite:./aff_shop.db?mode=rwc"
+# PostgreSQL — build with --features postgres --no-default-features
+# url = "postgres://user:password@localhost:5432/aff_shop"
 
 [jwt]
 # MUST change before production — server will refuse to start with default secret
@@ -209,6 +230,19 @@ AFF/
 - 首次访问自动检测浏览器语言，可在页面顶部手动切换
 - 深色模式支持: 亮色 / 暗色 / 跟随系统，点击顶部图标切换
 - 偏好设置持久化到 localStorage
+
+## 数据库后端
+
+项目通过 Cargo feature flags 支持 SQLite 和 PostgreSQL 两种数据库：
+
+| Feature | 说明 | 编译命令 |
+|---------|------|----------|
+| `sqlite` (默认) | 零配置，单文件数据库 | `cargo build --release` |
+| `postgres` | 需要运行中的 PostgreSQL 实例 | `cargo build --release --features postgres --no-default-features` |
+
+- Docker 构建时通过 `DB_BACKEND` build arg 切换 (默认 `sqlite`)
+- 应用代码无差异 — SeaORM 自动根据连接串协议选择驱动
+- `config.toml` 中修改 `database.url` 即可切换 (需配合对应 feature 编译)
 
 ## 开发
 
