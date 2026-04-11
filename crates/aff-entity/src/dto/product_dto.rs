@@ -78,3 +78,57 @@ pub struct ProductResponse {
     pub updated_at: DateTime<Utc>,
     pub variants: Vec<VariantResponse>,
 }
+
+/// Public-facing product response — strips internal fields (post_pay_action, aff_commission)
+#[derive(Debug, Serialize)]
+pub struct PublicProductResponse {
+    pub id: i32,
+    pub category_id: Option<i32>,
+    pub category_name: Option<String>,
+    pub name: String,
+    pub description: Option<String>,
+    pub price: f64,
+    pub stock_count: i32,
+    pub sales_count: i32,
+    pub is_active: bool,
+    pub allow_alipay: bool,
+    pub allow_wxpay: bool,
+    pub allow_qqpay: bool,
+    pub allow_usdt_trc20: bool,
+    pub allow_trx: bool,
+    pub allow_usdt_erc20: bool,
+    pub sort_order: i32,
+    pub min_quantity: i32,
+    pub max_quantity: i32,
+    pub image_url: Option<String>,
+    pub video_url: Option<String>,
+    pub variants: Vec<VariantResponse>,
+}
+
+impl From<ProductResponse> for PublicProductResponse {
+    fn from(p: ProductResponse) -> Self {
+        Self {
+            id: p.id,
+            category_id: p.category_id,
+            category_name: p.category_name,
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            stock_count: p.stock_count,
+            sales_count: p.sales_count,
+            is_active: p.is_active,
+            allow_alipay: p.allow_alipay,
+            allow_wxpay: p.allow_wxpay,
+            allow_qqpay: p.allow_qqpay,
+            allow_usdt_trc20: p.allow_usdt_trc20,
+            allow_trx: p.allow_trx,
+            allow_usdt_erc20: p.allow_usdt_erc20,
+            sort_order: p.sort_order,
+            min_quantity: p.min_quantity,
+            max_quantity: p.max_quantity,
+            image_url: p.image_url,
+            video_url: p.video_url,
+            variants: p.variants,
+        }
+    }
+}

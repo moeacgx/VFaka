@@ -115,7 +115,7 @@ async function queryBalance() {
     affInfo.value = res.data
     allTiers.value = tiersRes.data || []
     // Also load logs
-    loadLogs()
+    await loadLogs()
   } catch (e: any) {
     const status = e.response?.status
     if (status === 404) {
@@ -331,7 +331,6 @@ async function submitWithdraw() {
             v-model="regEmail"
             type="email"
             class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none"
-            readonly
           />
         </div>
         <div>

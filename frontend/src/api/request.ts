@@ -1,4 +1,5 @@
 import axios from 'axios'
+import router from '../router'
 
 const request = axios.create({
   baseURL: '/api',
@@ -24,13 +25,13 @@ request.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('admin_token')
       if (window.location.pathname.startsWith('/admin')) {
-        window.location.href = '/admin/login'
+        router.push('/admin/login')
       }
     }
     if (error.response?.status === 403) {
       if (window.location.pathname.startsWith('/admin')) {
         alert(error.response?.data?.message || 'Permission denied')
-        window.location.href = '/admin/dashboard'
+        router.push('/admin/dashboard')
       }
     }
     return Promise.reject(error)

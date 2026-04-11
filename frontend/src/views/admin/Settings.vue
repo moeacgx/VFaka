@@ -33,10 +33,25 @@ function toggleSection(section: string) {
   expandedSections.value[section] = !expandedSections.value[section]
 }
 
+const sectionKeys: Record<string, string[]> = {
+  basic: ['site_name', 'site_keywords', 'site_description', 'site_logo', 'contact_email', 'contact_telegram', 'aff_commission_rate', 'aff_min_withdraw', 'aff_withdraw_fee_rate', 'allow_command_action'],
+  announcement: ['announcement_enabled', 'announcement_text', 'announcement_type'],
+  telegram: ['telegram_enabled', 'telegram_bot_token', 'telegram_chat_id'],
+  smtp: ['smtp_enabled', 'smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_from'],
+  storage: ['storage_type', 's3_endpoint', 's3_bucket', 's3_region', 's3_access_key', 's3_secret_key', 's3_custom_domain'],
+}
+
 async function saveSection(section: string) {
   saving.value = section
   try {
-    await adminApi.updateSettings(settings.value)
+    const keys = sectionKeys[section] || Object.keys(settings.value)
+    const data: Record<string, string> = {}
+    for (const key of keys) {
+      if (key in settings.value) {
+        data[key] = settings.value[key]
+      }
+    }
+    await adminApi.updateSettings(data)
     alert(t('common.operation_success'))
   } catch (e: any) {
     alert(e.response?.data?.error || t('common.operation_failed'))
@@ -48,19 +63,10 @@ async function saveSection(section: string) {
 async function testTelegram() {
   testingTelegram.value = true
   try {
-    const token = localStorage.getItem('admin_token')
-    const res = await fetch('/api/admin/settings/test-telegram', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    })
-    const data = await res.json()
-    if (res.ok) {
-      alert(t('common.operation_success'))
-    } else {
-      alert(data.error || t('common.operation_failed'))
-    }
+    await adminApi.testTelegram()
+    alert(t('common.operation_success'))
   } catch (e: any) {
-    alert(t('common.operation_failed'))
+    alert(e.response?.data?.error || t('common.operation_failed'))
   } finally {
     testingTelegram.value = false
   }
@@ -70,20 +76,10 @@ async function testSmtp() {
   if (!testEmail.value) return
   testingEmail.value = true
   try {
-    const token = localStorage.getItem('admin_token')
-    const res = await fetch('/api/admin/settings/test-email', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ test_email: testEmail.value }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      alert(t('common.operation_success'))
-    } else {
-      alert(data.error || t('common.operation_failed'))
-    }
+    await adminApi.testEmail({ test_email: testEmail.value })
+    alert(t('common.operation_success'))
   } catch (e: any) {
-    alert(t('common.operation_failed'))
+    alert(e.response?.data?.error || t('common.operation_failed'))
   } finally {
     testingEmail.value = false
   }

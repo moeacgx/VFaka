@@ -11,6 +11,25 @@ pub async fn create_withdrawal(
     db: &DatabaseConnection,
     dto: AffWithdrawDto,
 ) -> AppResult<withdrawal::Model> {
+    // Validate currency and chain
+    const VALID_CURRENCIES: &[&str] = &["USDT", "USDC"];
+    const VALID_CHAINS: &[&str] = &["tron", "polygon", "base"];
+
+    if !VALID_CURRENCIES.contains(&dto.currency.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid currency '{}'. Supported: {}",
+            dto.currency,
+            VALID_CURRENCIES.join(", ")
+        )));
+    }
+    if !VALID_CHAINS.contains(&dto.chain.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid chain '{}'. Supported: {}",
+            dto.chain,
+            VALID_CHAINS.join(", ")
+        )));
+    }
+
     // Pre-validate outside transaction (read-only checks)
     let user = aff_user::Entity::find()
         .filter(aff_user::Column::Email.eq(&dto.email))

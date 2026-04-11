@@ -18,10 +18,13 @@ pub fn scope() -> actix_web::Scope {
 }
 
 fn mask_sensitive_value(value: &str) -> String {
-    if value.len() <= 6 {
-        "*".repeat(value.len())
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 6 {
+        "*".repeat(chars.len())
     } else {
-        format!("{}***{}", &value[..3], &value[value.len()-3..])
+        let prefix: String = chars[..3].iter().collect();
+        let suffix: String = chars[chars.len()-3..].iter().collect();
+        format!("{}***{}", prefix, suffix)
     }
 }
 

@@ -6,6 +6,9 @@ export const publicApi = {
   getSiteInfo: () => request.get('/v1/site-info'),
   getPublicConfig: () => request.get('/v1/config'),
 
+  // Announcement
+  getAnnouncement: () => request.get('/v1/announcement'),
+
   // Products
   getCategories: () => request.get('/v1/categories'),
   getProducts: (params?: { category_id?: number }) => request.get('/v1/products', { params }),

@@ -61,18 +61,24 @@ pub async fn reject_withdrawal(
         )));
     }
 
-    // Refund the balance back to the aff user
+    // Compute refund values from the Model BEFORE converting to ActiveModel
     let aff_user = aff_entity::entities::aff_user::Entity::find_by_id(existing.aff_user_id)
         .one(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound("AFF user not found".to_string()))?;
 
+    let new_balance = aff_user.balance + existing.amount;
+    let new_withdrawn = (aff_user.total_withdrawn - existing.amount).max(0.0);
+
+    // Transaction: refund balance + update withdrawal status atomically
+    let txn = db.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
     let mut aff_model: aff_entity::entities::aff_user::ActiveModel = aff_user.into();
-    aff_model.balance = Set(aff_model.balance.unwrap() + existing.amount);
-    aff_model.total_withdrawn = Set(aff_model.total_withdrawn.unwrap() - existing.amount);
+    aff_model.balance = Set(new_balance);
+    aff_model.total_withdrawn = Set(new_withdrawn);
     aff_model
-        .update(db)
+        .update(&txn)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -81,10 +87,14 @@ pub async fn reject_withdrawal(
     model.admin_note = Set(Some(note.to_string()));
     model.processed_at = Set(Some(chrono::Utc::now()));
 
-    model
-        .update(db)
+    let result = model
+        .update(&txn)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    txn.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(result)
 }
 
 pub async fn complete_withdrawal(

@@ -19,20 +19,29 @@ const siteInfo = ref<SiteInfo>({
   contact_telegram: '',
 })
 const loaded = ref(false)
+let fetchPromise: Promise<void> | null = null
 
 async function fetchSiteInfo() {
   if (loaded.value) return
-  try {
-    const res = await publicApi.getSiteInfo()
-    siteInfo.value = res.data
-    loaded.value = true
+  if (fetchPromise) return fetchPromise
 
-    if (siteInfo.value.site_name) {
-      document.title = siteInfo.value.site_name
+  fetchPromise = (async () => {
+    try {
+      const res = await publicApi.getSiteInfo()
+      siteInfo.value = res.data
+      loaded.value = true
+
+      if (siteInfo.value.site_name) {
+        document.title = siteInfo.value.site_name
+      }
+    } catch {
+      // fallback to defaults
+    } finally {
+      fetchPromise = null
     }
-  } catch {
-    // fallback to defaults
-  }
+  })()
+
+  return fetchPromise
 }
 
 export function useSiteInfo() {

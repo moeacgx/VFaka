@@ -86,7 +86,7 @@ function toggleSelect(id: number) {
 
 async function toggleStatus(cat: any) {
   try {
-    await adminApi.updateCategory(cat.id, { ...cat, is_active: !cat.is_active })
+    await adminApi.updateCategory(cat.id, { is_active: !cat.is_active })
     await load()
   } catch (e: any) {
     alert(e.response?.data?.error || t('common.operation_failed'))

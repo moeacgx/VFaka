@@ -4,6 +4,7 @@ import request from './request'
 export const adminApi = {
   login: (data: { username: string; password: string }) => request.post('/admin/auth/login', data),
   getDashboard: () => request.get('/admin/dashboard'),
+  getAdminConfig: () => request.get('/admin/dashboard/config'),
 
   // Categories
   getCategories: () => request.get('/admin/categories'),
@@ -55,6 +56,8 @@ export const adminApi = {
   // Settings
   getSettings: () => request.get('/admin/settings'),
   updateSettings: (data: any) => request.put('/admin/settings', data),
+  testTelegram: () => request.post('/admin/settings/test-telegram'),
+  testEmail: (data: { test_email: string }) => request.post('/admin/settings/test-email', data),
 
   // Coupons
   getCoupons: (params?: any) => request.get('/admin/coupons', { params }),
@@ -68,4 +71,9 @@ export const adminApi = {
   createVariant: (productId: number, data: any) => request.post(`/admin/variants/product/${productId}`, data),
   updateVariant: (id: number, data: any) => request.put(`/admin/variants/${id}`, data),
   deleteVariant: (id: number) => request.delete(`/admin/variants/${id}`),
+
+  // Upload
+  upload: (formData: FormData) => request.post('/admin/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 }

@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use aff_common::error::AppResult;
 use aff_core::services::{category_service, product_service};
+use aff_entity::dto::PublicProductResponse;
 
 #[derive(Debug, Deserialize)]
 pub struct ProductListQuery {
@@ -24,8 +25,12 @@ pub async fn list_products(
     query: web::Query<ProductListQuery>,
 ) -> AppResult<HttpResponse> {
     let products = product_service::list_products(db.get_ref(), query.category_id).await?;
-    // Filter to active only for public API
-    let active: Vec<_> = products.into_iter().filter(|p| p.is_active).collect();
+    // Filter to active only, strip internal fields for public API
+    let active: Vec<PublicProductResponse> = products
+        .into_iter()
+        .filter(|p| p.is_active)
+        .map(PublicProductResponse::from)
+        .collect();
     Ok(HttpResponse::Ok().json(active))
 }
 
@@ -41,7 +46,8 @@ pub async fn get_product(
             id
         )));
     }
-    Ok(HttpResponse::Ok().json(product))
+    let public: PublicProductResponse = product.into();
+    Ok(HttpResponse::Ok().json(public))
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {

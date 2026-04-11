@@ -274,7 +274,7 @@ onMounted(() => {
     <!-- Pagination -->
     <div v-if="totalPages > 1" class="flex justify-center items-center gap-4 mt-4 text-sm text-gray-600 dark:text-gray-300">
       <button @click="page > 1 && (page--, load())" :disabled="page <= 1" class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-30">{{ $t('common.prev_page') }}</button>
-      <span>{{ $t('common.page_info', { page, total: totalPages }) }}</span>
+      <span>{{ $t('common.page_info', { current: page, total: totalPages }) }}</span>
       <button @click="page < totalPages && (page++, load())" :disabled="page >= totalPages" class="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-30">{{ $t('common.next_page') }}</button>
     </div>
   </div>

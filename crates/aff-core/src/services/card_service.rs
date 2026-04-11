@@ -242,14 +242,23 @@ pub async fn deliver_cards(
 
     let now = chrono::Utc::now();
 
-    card::Entity::update_many()
+    let result = card::Entity::update_many()
         .col_expr(card::Column::Status, Expr::value("sold"))
         .col_expr(card::Column::OrderId, Expr::value(Some(order_id)))
         .col_expr(card::Column::SoldAt, Expr::value(Some(now)))
         .filter(card::Column::Id.is_in(card_ids.to_vec()))
+        .filter(card::Column::Status.eq("locked"))
         .exec(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if result.rows_affected != card_ids.len() as u64 {
+        tracing::warn!(
+            "deliver_cards: expected {} locked cards, updated {}",
+            card_ids.len(),
+            result.rows_affected
+        );
+    }
 
     Ok(())
 }

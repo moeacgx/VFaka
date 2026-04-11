@@ -129,7 +129,7 @@ pub async fn update_product(
         model.name = Set(v);
     }
     if let Some(v) = dto.description {
-        model.description = Set(Some(v));
+        model.description = Set(if v.is_empty() { None } else { Some(v) });
     }
     if let Some(v) = dto.price {
         model.price = Set(v);
@@ -156,13 +156,13 @@ pub async fn update_product(
         model.allow_usdt_erc20 = Set(v);
     }
     if let Some(v) = dto.post_pay_action_type {
-        model.post_pay_action_type = Set(Some(v));
+        model.post_pay_action_type = Set(if v.is_empty() { None } else { Some(v) });
     }
     if let Some(v) = dto.post_pay_action_value {
-        model.post_pay_action_value = Set(Some(v));
+        model.post_pay_action_value = Set(if v.is_empty() { None } else { Some(v) });
     }
     if let Some(v) = dto.aff_commission_rate {
-        model.aff_commission_rate = Set(Some(v));
+        model.aff_commission_rate = Set(if v == 0.0 { None } else { Some(v) });
     }
     if let Some(v) = dto.sort_order {
         model.sort_order = Set(v);
@@ -174,10 +174,10 @@ pub async fn update_product(
         model.max_quantity = Set(v);
     }
     if let Some(v) = dto.image_url {
-        model.image_url = Set(Some(v));
+        model.image_url = Set(if v.is_empty() { None } else { Some(v) });
     }
     if let Some(v) = dto.video_url {
-        model.video_url = Set(Some(v));
+        model.video_url = Set(if v.is_empty() { None } else { Some(v) });
     }
 
     model.updated_at = Set(chrono::Utc::now());

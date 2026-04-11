@@ -7,7 +7,7 @@ pub struct AffRegisterDto {
     pub withdraw_password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct AffWithdrawDto {
     pub email: String,
     pub password: String,

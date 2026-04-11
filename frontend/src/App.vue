@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from './composables/useTheme'
 import { useSiteInfo } from './composables/useSiteInfo'
+import { publicApi } from './api/public'
 
 const route = useRoute()
 const { locale } = useI18n()
@@ -21,10 +22,9 @@ onMounted(async () => {
     announcementDismissed.value = true
   }
   try {
-    const res = await fetch('/api/v1/announcement')
-    const data = await res.json()
-    if (data.enabled) {
-      announcement.value = data
+    const res = await publicApi.getAnnouncement()
+    if (res.data.enabled) {
+      announcement.value = res.data
     }
   } catch {
     // ignore

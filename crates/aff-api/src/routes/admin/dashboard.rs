@@ -1,12 +1,20 @@
 use actix_web::{web, HttpResponse};
 use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, ColumnTrait};
 
+use aff_common::config::AppConfig;
 use aff_common::error::{AppError, AppResult};
 use aff_entity::entities::{order, product, card};
 
 pub fn scope() -> actix_web::Scope {
     web::scope("/dashboard")
         .route("", web::get().to(stats))
+        .route("/config", web::get().to(admin_config))
+}
+
+async fn admin_config(config: web::Data<AppConfig>) -> AppResult<HttpResponse> {
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "allow_command_action": config.security.allow_command_action,
+    })))
 }
 
 async fn stats(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {
@@ -24,7 +32,7 @@ async fn stats(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {
 
     let today_paid_orders: Vec<order::Model> = order::Entity::find()
         .filter(order::Column::CreatedAt.gte(today_start))
-        .filter(order::Column::Status.eq("paid"))
+        .filter(order::Column::Status.is_in(["paid", "delivered"]))
         .all(db.get_ref())
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;

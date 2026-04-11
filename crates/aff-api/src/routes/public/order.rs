@@ -44,6 +44,23 @@ fn is_method_allowed(product: &aff_entity::dto::ProductResponse, method: &str) -
     }
 }
 
+fn is_valid_email(email: &str) -> bool {
+    let trimmed = email.trim();
+    if trimmed.is_empty() || trimmed.len() > 254 {
+        return false;
+    }
+    let parts: Vec<&str> = trimmed.splitn(2, '@').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let (local, domain) = (parts[0], parts[1]);
+    !local.is_empty()
+        && !domain.is_empty()
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+}
+
 pub async fn create_order(
     db: web::Data<DatabaseConnection>,
     config: web::Data<AppConfig>,
@@ -52,6 +69,11 @@ pub async fn create_order(
 ) -> AppResult<HttpResponse> {
     let dto = body.into_inner();
     let client_ip = get_client_ip(&req);
+
+    // Validate email format
+    if !is_valid_email(&dto.email) {
+        return Err(AppError::BadRequest("Invalid email format".into()));
+    }
 
     // 1. Validate product
     let product = product_service::get_product(db.get_ref(), dto.product_id).await?;
@@ -167,22 +189,45 @@ pub async fn create_order(
     )
     .await?;
 
-    // 9b. Atomically increment coupon usage (CAS — will fail if limit reached by concurrent request)
-    if let Some(ref code) = coupon_code_used {
-        coupon_service::use_coupon(db.get_ref(), code).await?;
-    }
+    // 10. Lock cards FIRST (before coupon — so failure doesn't consume coupon)
+    let locked_cards = match card_service::lock_cards(db.get_ref(), dto.product_id, variant_id, dto.quantity, order.id).await {
+        Ok(cards) => cards,
+        Err(e) => {
+            // Cards failed to lock — mark order failed, nothing else to rollback
+            let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
+            return Err(e);
+        }
+    };
 
-    // 10. Lock cards (bind to order)
-    let _locked_cards = card_service::lock_cards(db.get_ref(), dto.product_id, variant_id, dto.quantity, order.id).await?;
+    let locked_card_ids: Vec<i32> = locked_cards.iter().map(|c| c.id).collect();
+
+    // 10b. Atomically increment coupon usage AFTER cards are locked
+    if let Some(ref code) = coupon_code_used {
+        if let Err(e) = coupon_service::use_coupon(db.get_ref(), code).await {
+            // Coupon failed — release locked cards, mark order failed
+            let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
+            return Err(e);
+        }
+    }
 
     // 11. Load payment config from DB
     let configs = payment_config_service::list_configs(db.get_ref()).await?;
-    let pay_config = configs
+    let pay_config = match configs
         .iter()
         .find(|c| c.channel == channel && c.is_active)
-        .ok_or_else(|| {
-            AppError::BadRequest(format!("Payment channel '{}' is not configured", channel))
-        })?;
+    {
+        Some(c) => c,
+        None => {
+            // Payment config missing — rollback coupon + cards
+            if let Some(ref code) = coupon_code_used {
+                let _ = coupon_service::unuse_coupon(db.get_ref(), code).await;
+            }
+            let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
+            return Err(AppError::BadRequest(format!("Payment channel '{}' is not configured", channel)));
+        }
+    };
 
     // 12. Create payment provider and submit
     let provider = create_provider(channel, &pay_config.config_json)?;
@@ -195,7 +240,12 @@ pub async fn create_order(
         _ => format!("{}/api/v1/pay/{}/notify", base_url, channel),
     };
 
-    let return_url = format!("{}/api/v1/pay/epay/return?order_no={}", base_url, order_no);
+    let return_url = format!(
+        "{}/order?no={}&token={}",
+        base_url,
+        order_no,
+        order.query_token.as_deref().unwrap_or("")
+    );
 
     let payment_method_enum: aff_common::types::PaymentMethod =
         serde_json::from_value(serde_json::Value::String(dto.payment_method.clone()))
@@ -217,7 +267,19 @@ pub async fn create_order(
         return_url,
     };
 
-    let pay_resp = provider.create_payment(pay_req).await?;
+    let pay_resp = match provider.create_payment(pay_req).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            // Payment provider failed — rollback coupon + cards, mark order failed
+            tracing::warn!(order_no = %order_no, error = %e, "Payment creation failed, rolling back");
+            if let Some(ref code) = coupon_code_used {
+                let _ = coupon_service::unuse_coupon(db.get_ref(), code).await;
+            }
+            let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
+            return Err(e);
+        }
+    };
 
     // Save trade_no to order
     if !pay_resp.trade_no.is_empty() {

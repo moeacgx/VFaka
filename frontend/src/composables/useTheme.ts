@@ -1,4 +1,4 @@
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -23,6 +23,8 @@ function applyTheme() {
   }
 }
 
+let mediaQueryHandler: (() => void) | null = null
+
 export function useTheme() {
   onMounted(() => {
     const saved = localStorage.getItem('theme_preference') as ThemeMode | null
@@ -31,11 +33,19 @@ export function useTheme() {
     }
     applyTheme()
 
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    mediaQueryHandler = () => {
       if (themeMode.value === 'system') {
         applyTheme()
       }
-    })
+    }
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', mediaQueryHandler)
+  })
+
+  onUnmounted(() => {
+    if (mediaQueryHandler) {
+      window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', mediaQueryHandler)
+      mediaQueryHandler = null
+    }
   })
 
   watch(themeMode, (val) => {

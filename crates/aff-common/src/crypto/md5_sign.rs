@@ -27,10 +27,18 @@ pub fn tokenpay_sign(params: &BTreeMap<String, String>, secret: &str) -> String 
     md5_hash(&sign_str)
 }
 
-/// Verify TokenPay signature
+/// Verify TokenPay signature (constant-time comparison via double-hash)
 pub fn tokenpay_verify(params: &BTreeMap<String, String>, signature: &str, secret: &str) -> bool {
     let computed = tokenpay_sign(params, secret);
-    computed == signature
+    // Constant-time: compare hashes of both values to avoid timing side-channel
+    if computed.len() != signature.len() {
+        return false;
+    }
+    let mut result = 0u8;
+    for (a, b) in computed.bytes().zip(signature.bytes()) {
+        result |= a ^ b;
+    }
+    result == 0
 }
 
 #[cfg(test)]

@@ -1,8 +1,9 @@
 use sea_orm::*;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use aff_common::config::AppConfig;
-use aff_entity::entities::{card, order, product};
+use aff_entity::entities::{card, order, product, product_variant};
 
 /// Cleanup expired pending orders (15 min timeout).
 /// Also recover orders stuck in "processing" for >5 min (rollback to "paid").
@@ -60,9 +61,9 @@ pub async fn cleanup_expired_orders(db: &DatabaseConnection, config: &AppConfig)
             }
         }
 
-        // Mark order as failed
+        // Mark order as expired
         let mut am: order::ActiveModel = o.clone().into();
-        am.status = Set("failed".to_string());
+        am.status = Set("expired".to_string());
         am.updated_at = Set(chrono::Utc::now());
         let _ = am.update(db).await;
 
@@ -70,8 +71,10 @@ pub async fn cleanup_expired_orders(db: &DatabaseConnection, config: &AppConfig)
     }
 
     if !expired.is_empty() {
-        // Update product stock counts
-        let product_ids: Vec<i32> = expired.iter().map(|o| o.product_id).collect();
+        // Update product and variant stock counts (dedup IDs)
+        let product_ids: HashSet<i32> = expired.iter().map(|o| o.product_id).collect();
+        let variant_ids: HashSet<i32> = expired.iter().filter_map(|o| o.variant_id).collect();
+
         for pid in product_ids {
             let count = card::Entity::find()
                 .filter(card::Column::ProductId.eq(pid))
@@ -82,6 +85,21 @@ pub async fn cleanup_expired_orders(db: &DatabaseConnection, config: &AppConfig)
 
             if let Ok(Some(p)) = product::Entity::find_by_id(pid).one(db).await {
                 let mut am: product::ActiveModel = p.into();
+                am.stock_count = Set(count as i32);
+                let _ = am.update(db).await;
+            }
+        }
+
+        for vid in variant_ids {
+            let count = card::Entity::find()
+                .filter(card::Column::VariantId.eq(vid))
+                .filter(card::Column::Status.eq("available"))
+                .count(db)
+                .await
+                .unwrap_or(0);
+
+            if let Ok(Some(v)) = product_variant::Entity::find_by_id(vid).one(db).await {
+                let mut am: product_variant::ActiveModel = v.into();
                 am.stock_count = Set(count as i32);
                 let _ = am.update(db).await;
             }

@@ -156,6 +156,23 @@ pub async fn use_coupon(db: &DatabaseConnection, code: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Decrement coupon used_count by 1 (rollback after failed order).
+pub async fn unuse_coupon(db: &DatabaseConnection, code: &str) -> AppResult<()> {
+    use sea_orm::sea_query::Expr;
+
+    coupon::Entity::update_many()
+        .col_expr(
+            coupon::Column::UsedCount,
+            Expr::col(coupon::Column::UsedCount).sub(1),
+        )
+        .filter(coupon::Column::Code.eq(code))
+        .filter(Expr::col(coupon::Column::UsedCount).gt(0))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(())
+}
+
 // --- Admin CRUD ---
 
 pub async fn list_coupons(

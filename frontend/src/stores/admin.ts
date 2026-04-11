@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { adminApi } from '../api/admin'
 import router from '../router'
 
@@ -19,6 +19,31 @@ export const useAdminStore = defineStore('admin', () => {
   const role = ref(token.value ? parseJwtRole(token.value) : 'admin')
   const isLoggedIn = computed(() => !!token.value)
   const isSuperAdmin = computed(() => role.value === 'super_admin')
+
+  function handleStorageChange(e: StorageEvent) {
+    if (e.key === 'admin_token') {
+      if (!e.newValue) {
+        token.value = ''
+        username.value = ''
+        role.value = 'admin'
+        router.push('/admin/login')
+      } else {
+        token.value = e.newValue
+        role.value = parseJwtRole(e.newValue)
+      }
+    }
+    if (e.key === 'admin_username' && e.newValue !== null) {
+      username.value = e.newValue
+    }
+  }
+
+  onMounted(() => {
+    window.addEventListener('storage', handleStorageChange)
+  })
+
+  onUnmounted(() => {
+    window.removeEventListener('storage', handleStorageChange)
+  })
 
   async function login(user: string, password: string) {
     const res = await adminApi.login({ username: user, password })

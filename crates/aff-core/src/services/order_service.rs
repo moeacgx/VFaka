@@ -113,11 +113,7 @@ pub async fn claim_order_for_processing(
         .col_expr(order::Column::Status, Expr::value("processing"))
         .col_expr(order::Column::UpdatedAt, Expr::value(chrono::Utc::now()))
         .filter(order::Column::OrderNo.eq(order_no))
-        .filter(
-            order::Column::Status
-                .eq("paid")
-                .or(order::Column::Status.eq("pending")),
-        )
+        .filter(order::Column::Status.eq("paid"))
         .exec(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;

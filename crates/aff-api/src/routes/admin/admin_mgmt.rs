@@ -29,6 +29,11 @@ async fn create(
     body: web::Json<CreateAdminDto>,
 ) -> AppResult<HttpResponse> {
     let dto = body.into_inner();
+    if dto.role != "admin" && dto.role != "super_admin" {
+        return Err(aff_common::error::AppError::BadRequest(
+            "Role must be 'admin' or 'super_admin'".into(),
+        ));
+    }
     let admin = admin_service::create_admin(&db, &dto.username, &dto.password, &dto.role).await?;
     Ok(HttpResponse::Created().json(admin))
 }

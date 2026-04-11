@@ -57,11 +57,10 @@ pub async fn get_site_info(
 }
 
 pub async fn get_public_config(
-    config: web::Data<aff_common::config::AppConfig>,
+    _config: web::Data<aff_common::config::AppConfig>,
 ) -> AppResult<HttpResponse> {
-    Ok(HttpResponse::Ok().json(serde_json::json!({
-        "allow_command_action": config.security.allow_command_action,
-    })))
+    // Only expose non-sensitive config to public; security settings are admin-only
+    Ok(HttpResponse::Ok().json(serde_json::json!({})))
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {

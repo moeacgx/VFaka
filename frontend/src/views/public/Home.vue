@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { publicApi } from '../../api/public'
@@ -173,6 +173,23 @@ async function validateCoupon(code: string) {
   }
 }
 
+// Revalidate coupon when quantity or variant changes
+watch([orderQuantity, selectedVariantId], () => {
+  const code = couponCode.value.trim()
+  if (code && selectedProduct.value) {
+    couponResult.value = null
+    if (couponTimer) clearTimeout(couponTimer)
+    couponTimer = setTimeout(() => validateCoupon(code), 300)
+  }
+})
+
+onUnmounted(() => {
+  if (couponTimer) {
+    clearTimeout(couponTimer)
+    couponTimer = null
+  }
+})
+
 function getProductDisplayPrice(product: Product): string {
   if (product.variants && product.variants.length > 0) {
     const active = product.variants.filter(v => v.is_active)
@@ -193,6 +210,7 @@ function truncate(text: string | null, len: number) {
 
 function openBuyModal(product: Product) {
   selectedProduct.value = product
+  selectedVariantId.value = null
   orderEmail.value = ''
   orderQuantity.value = product.min_quantity || 1
   paymentMethod.value = ''

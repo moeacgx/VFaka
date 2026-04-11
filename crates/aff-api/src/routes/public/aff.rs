@@ -11,14 +11,31 @@ pub struct AffCodeQuery {
     pub code: String,
 }
 
+fn is_valid_email(email: &str) -> bool {
+    let trimmed = email.trim();
+    if trimmed.is_empty() || trimmed.len() > 254 {
+        return false;
+    }
+    let parts: Vec<&str> = trimmed.splitn(2, '@').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let (local, domain) = (parts[0], parts[1]);
+    !local.is_empty()
+        && !domain.is_empty()
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+}
+
 pub async fn register(
     db: web::Data<DatabaseConnection>,
     body: web::Json<AffRegisterDto>,
 ) -> AppResult<HttpResponse> {
     let dto = body.into_inner();
 
-    if dto.email.is_empty() {
-        return Err(AppError::BadRequest("Email is required".into()));
+    if !is_valid_email(&dto.email) {
+        return Err(AppError::BadRequest("Invalid email format".into()));
     }
     if dto.withdraw_password.is_empty() {
         return Err(AppError::BadRequest("Withdraw password is required".into()));
@@ -51,14 +68,14 @@ pub async fn withdraw(
 ) -> AppResult<HttpResponse> {
     let dto = body.into_inner();
 
-    if dto.email.is_empty() {
-        return Err(AppError::BadRequest("Email is required".into()));
+    if !is_valid_email(&dto.email) {
+        return Err(AppError::BadRequest("Invalid email format".into()));
     }
     if dto.amount <= 0.0 {
         return Err(AppError::BadRequest("Amount must be positive".into()));
     }
 
-    let withdrawal = withdraw_service::create_withdrawal(db.get_ref(), dto).await?;
+    let withdrawal = withdraw_service::create_withdrawal(db.get_ref(), dto.clone()).await?;
 
     // Send Telegram notification for new withdrawal request
     let tg_enabled = settings_service::get_setting(db.get_ref(), "telegram_enabled")
@@ -71,7 +88,7 @@ pub async fn withdraw(
         let config = aff_notify::telegram::TelegramConfig { bot_token, chat_id, enabled: true };
         aff_notify::telegram::send_withdrawal_notification(
             config,
-            withdrawal.wallet_address.clone(),
+            dto.email.clone(),
             withdrawal.amount,
             withdrawal.currency.clone(),
             withdrawal.chain.clone(),

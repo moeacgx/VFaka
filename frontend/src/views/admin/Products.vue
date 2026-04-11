@@ -2,7 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
-import { publicApi } from '../../api/public'
 
 const { t } = useI18n()
 const loading = ref(true)
@@ -47,15 +46,8 @@ const restockVariantId = ref<number | null>(null)
 async function uploadFile(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
-  const token = localStorage.getItem('admin_token')
-  const res = await fetch('/api/admin/upload', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: formData,
-  })
-  if (!res.ok) throw new Error('Upload failed')
-  const data = await res.json()
-  return data.url
+  const res = await adminApi.upload(formData)
+  return res.data.url
 }
 
 async function handleImageUpload(e: Event) {
@@ -90,7 +82,7 @@ async function load() {
     const [pRes, cRes, cfgRes] = await Promise.all([
       adminApi.getProducts(),
       adminApi.getCategories(),
-      publicApi.getPublicConfig().catch(() => ({ data: {} })),
+      adminApi.getAdminConfig().catch(() => ({ data: {} })),
     ])
     products.value = pRes.data || []
     categories.value = cRes.data || []

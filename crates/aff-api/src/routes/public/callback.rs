@@ -185,6 +185,15 @@ async fn do_delivery(
             .update(db)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Update variant sales_count if applicable
+        if let Some(vid) = order.variant_id {
+            if let Ok(Some(variant)) = aff_entity::entities::product_variant::Entity::find_by_id(vid).one(db).await {
+                let mut var_am: aff_entity::entities::product_variant::ActiveModel = variant.into();
+                var_am.sales_count = Set(var_am.sales_count.unwrap() + order.quantity);
+                let _ = var_am.update(db).await;
+            }
+        }
     }
 
     // Process AFF commission
