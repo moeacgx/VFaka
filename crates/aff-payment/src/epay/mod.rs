@@ -109,6 +109,7 @@ impl PaymentProvider for EpayProvider {
         params.insert("return_url".to_string(), req.return_url.clone());
         params.insert("name".to_string(), req.product_name.clone());
         params.insert("money".to_string(), money);
+        params.insert("clientip".to_string(), req.client_ip.clone());
 
         let sign_str = build_sign_string(&params);
         let sign = md5_sign(&sign_str, &self.config.key);
