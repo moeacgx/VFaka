@@ -19,11 +19,19 @@ pub struct EpayConfig {
 
 pub struct EpayProvider {
     config: EpayConfig,
+    client: reqwest::Client,
 }
 
 impl EpayProvider {
     pub fn new(config: EpayConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            client: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(std::time::Duration::from_secs(10))
+                .build()
+                .unwrap_or_default(),
+        }
     }
 
     fn payment_method_to_epay_type(method: &PaymentMethod) -> AppResult<&'static str> {
@@ -36,6 +44,18 @@ impl EpayProvider {
                 method
             ))),
         }
+    }
+
+    /// Normalize api_url: strip trailing slash and known endpoint suffixes
+    fn normalize_base_url(url: &str) -> String {
+        let mut base = url.trim().trim_end_matches('/').to_string();
+        for suffix in &["/submit.php", "/mapi.php", "/api.php"] {
+            if base.ends_with(suffix) {
+                base.truncate(base.len() - suffix.len());
+                break;
+            }
+        }
+        base
     }
 }
 
@@ -61,11 +81,25 @@ fn md5_verify(sign_str: &str, sign_value: &str, key: &str) -> bool {
     expected == sign_value.to_lowercase()
 }
 
+#[derive(Debug, Deserialize)]
+struct EpayApiResponse {
+    code: Option<i32>,
+    #[serde(default)]
+    msg: Option<String>,
+    #[serde(default)]
+    trade_no: Option<String>,
+    #[serde(default)]
+    payurl: Option<String>,
+    #[serde(default)]
+    qrcode: Option<String>,
+}
+
 #[async_trait]
 impl PaymentProvider for EpayProvider {
     async fn create_payment(&self, req: PaymentRequest) -> AppResult<PaymentResponse> {
         let pay_type = Self::payment_method_to_epay_type(&req.payment_method)?;
         let money = format!("{:.2}", req.amount);
+        let base = Self::normalize_base_url(&self.config.api_url);
 
         let mut params = BTreeMap::new();
         params.insert("pid".to_string(), self.config.pid.clone());
@@ -82,15 +116,29 @@ impl PaymentProvider for EpayProvider {
         params.insert("sign".to_string(), sign);
         params.insert("sign_type".to_string(), "MD5".to_string());
 
-        // Build redirect URL to submit.php — the standard EPay V1 integration method.
-        // The user's browser navigates here directly; no server-to-server API call needed.
-        let base = self.config.api_url.trim_end_matches('/');
+        // Strategy: try mapi.php API first (server-to-server), fall back to submit.php redirect.
+        // mapi.php returns a payurl pointing to the actual payment gateway (alipay, wxpay, etc.),
+        // so the user's browser never touches the EPay CDN — avoids region blocking issues.
+        let mapi_url = format!("{}/mapi.php", base);
+        info!(url = %mapi_url, order_no = %req.order_no, "Trying EPay mapi.php API");
+
+        match self.try_mapi(&mapi_url, &params).await {
+            Ok(resp) => {
+                info!(order_no = %req.order_no, "EPay mapi.php succeeded");
+                return Ok(resp);
+            }
+            Err(e) => {
+                warn!(order_no = %req.order_no, error = %e, "EPay mapi.php failed, falling back to submit.php redirect");
+            }
+        }
+
+        // Fallback: build submit.php redirect URL for the browser
         let qs: String = url::form_urlencoded::Serializer::new(String::new())
             .extend_pairs(params.iter())
             .finish();
         let pay_url = format!("{}/submit.php?{}", base, qs);
 
-        info!(order_no = %req.order_no, "EPay submit URL generated");
+        info!(order_no = %req.order_no, "EPay submit.php fallback URL generated");
 
         Ok(PaymentResponse {
             trade_no: String::new(),
@@ -101,7 +149,6 @@ impl PaymentProvider for EpayProvider {
 
     async fn verify_callback(&self, raw: &CallbackRawData) -> AppResult<CallbackData> {
         // EPay V1 sends callback as both GET query and POST body
-        // Try query_string first, fall back to body
         let data_str = raw
             .query_string
             .as_ref()
@@ -166,5 +213,76 @@ impl PaymentProvider for EpayProvider {
 
     fn supported_methods(&self) -> Vec<PaymentMethod> {
         vec![PaymentMethod::Alipay, PaymentMethod::Wxpay, PaymentMethod::Qqpay]
+    }
+}
+
+impl EpayProvider {
+    /// Try mapi.php server-to-server API call.
+    /// Returns PaymentResponse with the actual payment gateway URL if successful.
+    async fn try_mapi(
+        &self,
+        mapi_url: &str,
+        params: &BTreeMap<String, String>,
+    ) -> AppResult<PaymentResponse> {
+        let resp = self
+            .client
+            .get(mapi_url)
+            .query(params)
+            .send()
+            .await
+            .map_err(|e| AppError::PaymentError(format!("mapi request failed: {}", e)))?;
+
+        let status = resp.status();
+        let body = resp
+            .text()
+            .await
+            .map_err(|e| AppError::PaymentError(format!("mapi response read failed: {}", e)))?;
+
+        if body.trim().is_empty() {
+            return Err(AppError::PaymentError("mapi returned empty body".into()));
+        }
+
+        if !status.is_success() {
+            return Err(AppError::PaymentError(format!(
+                "mapi returned HTTP {}: {}",
+                status,
+                body.chars().take(200).collect::<String>()
+            )));
+        }
+
+        let epay_resp: EpayApiResponse = serde_json::from_str(&body).map_err(|e| {
+            AppError::PaymentError(format!("mapi parse failed: {} body={}", e, body.chars().take(200).collect::<String>()))
+        })?;
+
+        match epay_resp.code {
+            Some(1) => {}
+            Some(code) => {
+                return Err(AppError::PaymentError(format!(
+                    "mapi error code={}: {}",
+                    code,
+                    epay_resp.msg.unwrap_or_default()
+                )));
+            }
+            None => {
+                return Err(AppError::PaymentError(format!(
+                    "mapi missing code field: {}",
+                    body.chars().take(200).collect::<String>()
+                )));
+            }
+        }
+
+        let pay_url = epay_resp
+            .payurl
+            .filter(|u| !u.is_empty());
+
+        if pay_url.is_none() && epay_resp.qrcode.is_none() {
+            return Err(AppError::PaymentError("mapi returned no payurl or qrcode".into()));
+        }
+
+        Ok(PaymentResponse {
+            trade_no: epay_resp.trade_no.unwrap_or_default(),
+            pay_url,
+            qr_code: epay_resp.qrcode,
+        })
     }
 }
