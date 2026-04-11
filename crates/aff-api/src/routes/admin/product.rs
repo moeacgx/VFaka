@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use aff_common::error::AppResult;
 use aff_core::services::{card_service, product_service};
-use aff_entity::dto::{CreateProductDto, ImportCardsDto, UpdateProductDto};
+use aff_entity::dto::{CreateProductDto, RestockCardsDto, UpdateProductDto};
 
 #[derive(Debug, Deserialize)]
 pub struct ProductListQuery {
@@ -80,7 +80,7 @@ async fn batch_delete(
 async fn restock(
     db: web::Data<DatabaseConnection>,
     path: web::Path<i32>,
-    body: web::Json<ImportCardsDto>,
+    body: web::Json<RestockCardsDto>,
 ) -> AppResult<HttpResponse> {
     let product_id = path.into_inner();
     let dto = body.into_inner();

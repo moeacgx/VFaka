@@ -24,6 +24,7 @@ export const adminApi = {
   // Cards
   getCards: (params?: any) => request.get('/admin/cards', { params }),
   importCards: (data: any) => request.post('/admin/cards/import', data),
+  updateCard: (id: number, data: any) => request.put(`/admin/cards/${id}`, data),
   deleteCard: (id: number) => request.delete(`/admin/cards/${id}`),
 
   // Orders

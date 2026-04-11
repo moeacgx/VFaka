@@ -11,6 +11,8 @@ const filterProduct = ref<number | string>('')
 const filterVariant = ref<number | string>('')
 const filterStatus = ref('')
 const showImport = ref(false)
+const editingCard = ref<number | null>(null)
+const editContent = ref('')
 const importForm = ref({ product_id: null as number | null, variant_id: null as number | null, cards: '' })
 
 const statusMap = computed<Record<string, string>>(() => ({
@@ -62,14 +64,29 @@ function getVariantName(variantId: number | null | undefined) {
   return ''
 }
 
-function maskContent(s: string) {
-  if (!s) return '-'
-  if (s.length <= 4) return '****'
-  return s.slice(0, 2) + '****' + s.slice(-2)
-}
-
 function getProductName(id: number) {
   return products.value.find(p => p.id === id)?.name || '-'
+}
+
+function startEdit(card: any) {
+  editingCard.value = card.id
+  editContent.value = card.content
+}
+
+function cancelEdit() {
+  editingCard.value = null
+  editContent.value = ''
+}
+
+async function saveEdit(id: number) {
+  try {
+    await adminApi.updateCard(id, { content: editContent.value })
+    editingCard.value = null
+    editContent.value = ''
+    await load()
+  } catch (e: any) {
+    alert(e.response?.data?.error || t('common.operation_failed'))
+  }
 }
 
 function openImport() {
@@ -183,7 +200,18 @@ onMounted(load)
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ card.id }}</td>
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ getProductName(card.product_id) }}</td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">{{ getVariantName(card.variant_id) || '-' }}</td>
-            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 font-mono text-xs">{{ maskContent(card.content) }}</td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 font-mono text-xs">
+              <template v-if="editingCard === card.id">
+                <div class="flex items-center gap-1">
+                  <input v-model="editContent" class="flex-1 px-2 py-1 border border-blue-400 dark:border-blue-500 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" @keyup.enter="saveEdit(card.id)" @keyup.escape="cancelEdit" />
+                  <button @click="saveEdit(card.id)" class="text-green-600 hover:text-green-800 text-xs whitespace-nowrap">✓</button>
+                  <button @click="cancelEdit" class="text-gray-400 hover:text-gray-600 text-xs whitespace-nowrap">✕</button>
+                </div>
+              </template>
+              <template v-else>
+                <span class="cursor-pointer hover:text-blue-500 transition-colors" :title="$t('common.edit')" @click="startEdit(card)">{{ card.content || '-' }}</span>
+              </template>
+            </td>
             <td class="px-4 py-3">
               <span
                 :class="{
@@ -197,7 +225,8 @@ onMounted(load)
               </span>
             </td>
             <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{{ card.created_at?.replace('T', ' ').slice(0, 19) }}</td>
-            <td class="px-4 py-3">
+            <td class="px-4 py-3 space-x-2">
+              <button v-if="card.status === 'available'" @click="startEdit(card)" class="text-blue-600 hover:text-blue-800 text-xs">{{ $t('common.edit') }}</button>
               <button v-if="card.status === 'available'" @click="remove(card.id)" class="text-red-600 hover:text-red-800 text-xs">{{ $t('common.delete') }}</button>
             </td>
           </tr>

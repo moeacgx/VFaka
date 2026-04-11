@@ -13,10 +13,16 @@ pub struct CardListQuery {
     pub status: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateCardDto {
+    pub content: Option<String>,
+}
+
 pub fn scope() -> actix_web::Scope {
     web::scope("/cards")
         .route("", web::get().to(list))
         .route("/import", web::post().to(import))
+        .route("/{id}", web::put().to(update))
         .route("/{id}", web::delete().to(delete))
 }
 
@@ -39,6 +45,15 @@ async fn import(
         "success": true,
         "imported": count,
     })))
+}
+
+async fn update(
+    db: web::Data<DatabaseConnection>,
+    path: web::Path<i32>,
+    body: web::Json<UpdateCardDto>,
+) -> AppResult<HttpResponse> {
+    let card = card_service::update_card(&db, path.into_inner(), body.into_inner().content).await?;
+    Ok(HttpResponse::Ok().json(card))
 }
 
 async fn delete(

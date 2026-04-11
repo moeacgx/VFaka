@@ -101,8 +101,8 @@ impl PaymentProvider for EpayProvider {
 
         let resp = self
             .client
-            .post(&api_url)
-            .form(&params)
+            .get(&api_url)
+            .query(&params)
             .send()
             .await
             .map_err(|e| AppError::PaymentError(format!("Epay request failed: {}", e)))?;

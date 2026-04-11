@@ -38,3 +38,9 @@ pub struct ImportCardsDto {
     pub variant_id: Option<i32>,
     pub cards: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct RestockCardsDto {
+    pub variant_id: Option<i32>,
+    pub cards: String,
+}

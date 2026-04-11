@@ -96,6 +96,29 @@ pub async fn import_cards(
     Ok(count)
 }
 
+pub async fn update_card(
+    db: &DatabaseConnection,
+    id: i32,
+    content: Option<String>,
+) -> AppResult<card::Model> {
+    let card_model = card::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound(format!("Card {} not found", id)))?;
+
+    let mut active: card::ActiveModel = card_model.into();
+    if let Some(c) = content {
+        let trimmed = c.trim().to_string();
+        if trimmed.is_empty() {
+            return Err(AppError::BadRequest("Card content cannot be empty".into()));
+        }
+        active.content = Set(trimmed);
+    }
+    let updated = active.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    Ok(updated)
+}
+
 pub async fn delete_card(db: &DatabaseConnection, id: i32) -> AppResult<()> {
     let card_model = card::Entity::find_by_id(id)
         .one(db)
