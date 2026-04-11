@@ -10,8 +10,7 @@ const saving = ref<string | null>(null)
 const epay = ref({
   is_active: false,
   pid: '',
-  merchant_private_key: '',
-  platform_public_key: '',
+  key: '',
   api_url: '',
 })
 
@@ -34,8 +33,7 @@ onMounted(async () => {
         const raw = cfg.config_json || '{}'
         const c = typeof raw === 'string' ? JSON.parse(raw) : raw
         epay.value.pid = c.pid || ''
-        epay.value.merchant_private_key = c.merchant_private_key || ''
-        epay.value.platform_public_key = c.platform_public_key || ''
+        epay.value.key = c.key || ''
         epay.value.api_url = c.api_url || ''
       } else if (cfg.channel === 'tokenpay') {
         tokenpay.value.is_active = !!cfg.is_active
@@ -61,8 +59,7 @@ async function saveEpay() {
       is_active: epay.value.is_active,
       config_json: JSON.stringify({
         pid: epay.value.pid,
-        merchant_private_key: epay.value.merchant_private_key,
-        platform_public_key: epay.value.platform_public_key,
+        key: epay.value.key,
         api_url: epay.value.api_url,
       }),
     })
@@ -119,11 +116,7 @@ async function saveTokenpay() {
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.merchant_key') }}</label>
-            <textarea v-model="epay.merchant_private_key" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.platform_key') }}</label>
-            <textarea v-model="epay.platform_public_key" rows="3" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" />
+            <input v-model="epay.key" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" />
           </div>
           <button type="submit" :disabled="saving === 'epay'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
             {{ saving === 'epay' ? $t('common.saving') : $t('payment.save_config') }}

@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use async_trait::async_trait;
+use md5;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-use aff_common::crypto::rsa_sign::{build_sign_string, rsa_sign, rsa_verify};
 use aff_common::error::{AppError, AppResult};
 use aff_common::types::PaymentMethod;
 
@@ -13,8 +13,7 @@ use crate::provider::{CallbackData, CallbackRawData, PaymentProvider, PaymentReq
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EpayConfig {
     pub pid: String,
-    pub merchant_private_key: String,
-    pub platform_public_key: String,
+    pub key: String,
     pub api_url: String,
 }
 
@@ -44,6 +43,28 @@ impl EpayProvider {
     }
 }
 
+/// Build sign string: sort params by ASCII key, join as key=value&..., exclude sign/sign_type/empty
+fn build_sign_string(params: &BTreeMap<String, String>) -> String {
+    params
+        .iter()
+        .filter(|(k, v)| !v.is_empty() && *k != "sign" && *k != "sign_type")
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+/// MD5 sign: sign = md5(sign_string + key)
+fn md5_sign(sign_str: &str, key: &str) -> String {
+    let input = format!("{}{}", sign_str, key);
+    format!("{:x}", md5::compute(input.as_bytes()))
+}
+
+/// MD5 verify: recompute and compare
+fn md5_verify(sign_str: &str, sign_value: &str, key: &str) -> bool {
+    let expected = md5_sign(sign_str, key);
+    expected == sign_value.to_lowercase()
+}
+
 #[derive(Debug, Deserialize)]
 struct EpayCreateResponse {
     code: i32,
@@ -57,12 +78,10 @@ struct EpayCreateResponse {
 impl PaymentProvider for EpayProvider {
     async fn create_payment(&self, req: PaymentRequest) -> AppResult<PaymentResponse> {
         let pay_type = Self::payment_method_to_epay_type(&req.payment_method)?;
-        let timestamp = chrono::Utc::now().timestamp().to_string();
         let money = format!("{:.2}", req.amount);
 
         let mut params = BTreeMap::new();
         params.insert("pid".to_string(), self.config.pid.clone());
-        params.insert("method".to_string(), "jump".to_string());
         params.insert("type".to_string(), pay_type.to_string());
         params.insert("out_trade_no".to_string(), req.order_no.clone());
         params.insert("notify_url".to_string(), req.notify_url.clone());
@@ -70,16 +89,14 @@ impl PaymentProvider for EpayProvider {
         params.insert("name".to_string(), req.product_name.clone());
         params.insert("money".to_string(), money);
         params.insert("clientip".to_string(), req.client_ip.clone());
-        params.insert("timestamp".to_string(), timestamp);
 
         let sign_str = build_sign_string(&params);
-        let sign = rsa_sign(&sign_str, &self.config.merchant_private_key)
-            .map_err(|e| AppError::PaymentError(format!("RSA sign failed: {}", e)))?;
+        let sign = md5_sign(&sign_str, &self.config.key);
 
         params.insert("sign".to_string(), sign);
-        params.insert("sign_type".to_string(), "RSA".to_string());
+        params.insert("sign_type".to_string(), "MD5".to_string());
 
-        let api_url = format!("{}/api/pay/create", self.config.api_url.trim_end_matches('/'));
+        let api_url = format!("{}/mapi.php", self.config.api_url.trim_end_matches('/'));
         info!(url = %api_url, order_no = %req.order_no, "Creating epay order");
 
         let resp = self
@@ -128,7 +145,7 @@ impl PaymentProvider for EpayProvider {
         for (k, v) in &pairs {
             if k == "sign" {
                 sign_value = v.clone();
-            } else {
+            } else if k != "sign_type" {
                 params.insert(k.clone(), v.clone());
             }
         }
@@ -138,10 +155,7 @@ impl PaymentProvider for EpayProvider {
         }
 
         let sign_str = build_sign_string(&params);
-        let valid = rsa_verify(&sign_str, &sign_value, &self.config.platform_public_key)
-            .map_err(|e| AppError::PaymentError(format!("RSA verify failed: {}", e)))?;
-
-        if !valid {
+        if !md5_verify(&sign_str, &sign_value, &self.config.key) {
             warn!("Epay callback signature verification failed");
             return Err(AppError::PaymentError("Invalid signature".into()));
         }

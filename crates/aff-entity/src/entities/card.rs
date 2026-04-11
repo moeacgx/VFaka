@@ -8,7 +8,6 @@ pub struct Model {
     pub id: i32,
     pub product_id: i32,
     pub variant_id: Option<i32>,
-    #[serde(skip_serializing)]
     pub content: String,
     pub status: String,
     pub order_id: Option<i32>,

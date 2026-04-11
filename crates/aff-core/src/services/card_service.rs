@@ -53,7 +53,9 @@ pub async fn import_cards(
         }
     }
 
-    let lines: Vec<&str> = text
+    // Support multiple delimiters: newline, comma, semicolon
+    let normalized = text.replace(',', "\n").replace(';', "\n");
+    let lines: Vec<&str> = normalized
         .lines()
         .map(|l| l.trim())
         .filter(|l| !l.is_empty())
