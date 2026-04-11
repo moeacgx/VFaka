@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use super::variant_dto::VariantResponse;
+
 #[derive(Debug, Deserialize)]
 pub struct CreateProductDto {
     pub category_id: Option<i32>,
@@ -74,4 +76,5 @@ pub struct ProductResponse {
     pub video_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub variants: Vec<VariantResponse>,
 }

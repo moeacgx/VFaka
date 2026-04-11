@@ -7,6 +7,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub product_id: i32,
+    pub variant_id: Option<i32>,
     #[serde(skip_serializing)]
     pub content: String,
     pub status: String,
@@ -24,6 +25,12 @@ pub enum Relation {
     )]
     Product,
     #[sea_orm(
+        belongs_to = "super::product_variant::Entity",
+        from = "Column::VariantId",
+        to = "super::product_variant::Column::Id"
+    )]
+    ProductVariant,
+    #[sea_orm(
         belongs_to = "super::order::Entity",
         from = "Column::OrderId",
         to = "super::order::Column::Id"
@@ -34,6 +41,12 @@ pub enum Relation {
 impl Related<super::product::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Product.def()
+    }
+}
+
+impl Related<super::product_variant::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ProductVariant.def()
     }
 }
 

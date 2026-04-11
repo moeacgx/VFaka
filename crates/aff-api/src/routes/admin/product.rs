@@ -84,7 +84,7 @@ async fn restock(
 ) -> AppResult<HttpResponse> {
     let product_id = path.into_inner();
     let dto = body.into_inner();
-    let count = card_service::import_cards(&db, product_id, &dto.cards).await?;
+    let count = card_service::import_cards(&db, product_id, dto.variant_id, &dto.cards).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true,
         "imported": count,

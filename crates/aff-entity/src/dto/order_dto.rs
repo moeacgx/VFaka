@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct CreateOrderDto {
     pub product_id: i32,
+    pub variant_id: Option<i32>,
     pub quantity: i32,
     pub email: String,
     pub payment_method: String,
@@ -22,6 +23,8 @@ pub struct OrderResponse {
     pub order_no: String,
     pub product_id: i32,
     pub product_name: Option<String>,
+    pub variant_id: Option<i32>,
+    pub variant_name: Option<String>,
     pub quantity: i32,
     pub total_amount: f64,
     pub email: String,

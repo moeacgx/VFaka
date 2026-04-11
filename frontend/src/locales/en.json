@@ -140,7 +140,16 @@
     "crypto": "Crypto",
     "confirm_purchase": "Confirm Purchase",
     "create_order_failed": "Failed to create order, please retry",
-    "select_payment_required": "Please select a payment method"
+    "select_payment_required": "Please select a payment method",
+    "variant": "Variant",
+    "variants": "Variants",
+    "variant_name": "Variant Name",
+    "add_variant": "Add Variant",
+    "edit_variant": "Edit Variant",
+    "no_variants": "No variants",
+    "select_variant": "Select variant",
+    "select_variant_required": "Please select a variant",
+    "all_variants": "All Variants"
   },
   "category": {
     "name": "Category Name",

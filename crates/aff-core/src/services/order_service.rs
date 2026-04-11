@@ -20,12 +20,16 @@ pub async fn create_order(
     ip_address: Option<String>,
     coupon_code: Option<String>,
     discount_amount: f64,
+    variant_id: Option<i32>,
+    variant_name: Option<String>,
 ) -> AppResult<order::Model> {
     let now = chrono::Utc::now();
     let query_token = generate_query_token();
     let model = order::ActiveModel {
         order_no: Set(order_no),
         product_id: Set(product_id),
+        variant_id: Set(variant_id),
+        variant_name: Set(variant_name),
         quantity: Set(quantity),
         total_amount: Set(total_amount),
         email: Set(email),
@@ -225,6 +229,8 @@ pub fn to_order_response(o: order::Model, hide_cards: bool) -> OrderResponse {
         order_no: o.order_no,
         product_id: o.product_id,
         product_name: None,
+        variant_id: o.variant_id,
+        variant_name: o.variant_name,
         quantity: o.quantity,
         total_amount: o.total_amount,
         email: o.email,

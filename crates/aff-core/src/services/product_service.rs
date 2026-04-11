@@ -1,8 +1,8 @@
 use sea_orm::*;
 
 use aff_common::error::{AppError, AppResult};
-use aff_entity::dto::{CreateProductDto, ProductResponse, UpdateProductDto};
-use aff_entity::entities::{card, category, product};
+use aff_entity::dto::{CreateProductDto, ProductResponse, UpdateProductDto, VariantResponse};
+use aff_entity::entities::{card, category, product, product_variant};
 
 pub async fn list_products(
     db: &DatabaseConnection,
@@ -21,9 +21,34 @@ pub async fn list_products(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    let product_ids: Vec<i32> = results.iter().map(|(p, _)| p.id).collect();
+
+    let variants = if product_ids.is_empty() {
+        vec![]
+    } else {
+        product_variant::Entity::find()
+            .filter(product_variant::Column::ProductId.is_in(product_ids))
+            .order_by_asc(product_variant::Column::SortOrder)
+            .all(db)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+    };
+
+    let mut variant_map: std::collections::HashMap<i32, Vec<VariantResponse>> =
+        std::collections::HashMap::new();
+    for v in variants {
+        variant_map
+            .entry(v.product_id)
+            .or_default()
+            .push(to_variant_response(v));
+    }
+
     Ok(results
         .into_iter()
-        .map(|(p, cat)| to_product_response(p, cat))
+        .map(|(p, cat)| {
+            let vars = variant_map.remove(&p.id).unwrap_or_default();
+            to_product_response(p, cat, vars)
+        })
         .collect())
 }
 
@@ -35,7 +60,15 @@ pub async fn get_product(db: &DatabaseConnection, id: i32) -> AppResult<ProductR
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Product {} not found", id)))?;
 
-    Ok(to_product_response(p, cat))
+    let variants = product_variant::Entity::find()
+        .filter(product_variant::Column::ProductId.eq(id))
+        .order_by_asc(product_variant::Column::SortOrder)
+        .all(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let vars = variants.into_iter().map(to_variant_response).collect();
+    Ok(to_product_response(p, cat, vars))
 }
 
 pub async fn create_product(
@@ -169,6 +202,13 @@ pub async fn delete_product(db: &DatabaseConnection, id: i32) -> AppResult<()> {
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    // Delete all variants
+    product_variant::Entity::delete_many()
+        .filter(product_variant::Column::ProductId.eq(id))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
     let model: product::ActiveModel = existing.into();
     model
         .delete(db)
@@ -186,6 +226,13 @@ pub async fn batch_delete_products(db: &DatabaseConnection, ids: Vec<i32>) -> Ap
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    // Delete all variants for these products
+    product_variant::Entity::delete_many()
+        .filter(product_variant::Column::ProductId.is_in(ids.clone()))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
     let result = product::Entity::delete_many()
         .filter(product::Column::Id.is_in(ids))
         .exec(db)
@@ -195,9 +242,26 @@ pub async fn batch_delete_products(db: &DatabaseConnection, ids: Vec<i32>) -> Ap
     Ok(result.rows_affected)
 }
 
+fn to_variant_response(v: product_variant::Model) -> VariantResponse {
+    VariantResponse {
+        id: v.id,
+        product_id: v.product_id,
+        name: v.name,
+        price: v.price,
+        description: v.description,
+        sort_order: v.sort_order,
+        is_active: v.is_active,
+        stock_count: v.stock_count,
+        sales_count: v.sales_count,
+        created_at: v.created_at,
+        updated_at: v.updated_at,
+    }
+}
+
 fn to_product_response(
     p: product::Model,
     cat: Option<category::Model>,
+    variants: Vec<VariantResponse>,
 ) -> ProductResponse {
     ProductResponse {
         id: p.id,
@@ -225,5 +289,6 @@ fn to_product_response(
         video_url: p.video_url,
         created_at: p.created_at,
         updated_at: p.updated_at,
+        variants,
     }
 }

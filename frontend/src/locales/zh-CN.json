@@ -140,7 +140,16 @@
     "crypto": "加密货币",
     "confirm_purchase": "确认购买",
     "create_order_failed": "创建订单失败，请重试",
-    "select_payment_required": "请选择支付方式"
+    "select_payment_required": "请选择支付方式",
+    "variant": "选项卡",
+    "variants": "选项卡",
+    "variant_name": "选项名称",
+    "add_variant": "添加选项卡",
+    "edit_variant": "编辑选项卡",
+    "no_variants": "暂无选项卡",
+    "select_variant": "请选择选项",
+    "select_variant_required": "请选择一个选项",
+    "all_variants": "所有选项"
   },
   "category": {
     "name": "分类名称",

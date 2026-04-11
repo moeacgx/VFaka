@@ -35,6 +35,15 @@ const defaultForm = () => ({
 const form = ref(defaultForm())
 const restockForm = ref({ product_id: null as number | null, cards: '' })
 
+// Variant management state
+const showVariants = ref<number | null>(null)
+const variantList = ref<any[]>([])
+const variantLoading = ref(false)
+const showVariantForm = ref(false)
+const editingVariant = ref<any>(null)
+const variantForm = ref({ name: '', price: 0, description: '', sort_order: 0, is_active: true })
+const restockVariantId = ref<number | null>(null)
+
 async function uploadFile(file: File): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
@@ -159,6 +168,7 @@ function toggleSelect(id: number) {
 
 function openRestock() {
   restockForm.value = { product_id: products.value[0]?.id || null, cards: '' }
+  restockVariantId.value = null
   showRestock.value = true
 }
 
@@ -169,7 +179,10 @@ async function submitRestock() {
   }
   try {
     const cards = restockForm.value.cards.split('\n').map(s => s.trim()).filter(Boolean)
-    await adminApi.restockProduct(restockForm.value.product_id, { cards: cards.join('\n') })
+    await adminApi.restockProduct(restockForm.value.product_id, {
+      cards: cards.join('\n'),
+      variant_id: restockVariantId.value || undefined,
+    })
     showRestock.value = false
     await load()
     alert(t('product.import_success', { count: cards.length }))
@@ -177,6 +190,82 @@ async function submitRestock() {
     alert(e.response?.data?.error || t('common.operation_failed'))
   }
 }
+
+// --- Variant management ---
+async function toggleVariants(productId: number) {
+  if (showVariants.value === productId) {
+    showVariants.value = null
+    return
+  }
+  showVariants.value = productId
+  await loadVariants(productId)
+}
+
+async function loadVariants(productId: number) {
+  variantLoading.value = true
+  try {
+    const res = await adminApi.getVariants(productId)
+    variantList.value = res.data || []
+  } catch (e) {
+    console.error(e)
+    variantList.value = []
+  } finally {
+    variantLoading.value = false
+  }
+}
+
+function openAddVariant() {
+  editingVariant.value = null
+  variantForm.value = { name: '', price: 0, description: '', sort_order: 0, is_active: true }
+  showVariantForm.value = true
+}
+
+function openEditVariant(v: any) {
+  editingVariant.value = v
+  variantForm.value = {
+    name: v.name,
+    price: v.price,
+    description: v.description || '',
+    sort_order: v.sort_order || 0,
+    is_active: v.is_active !== false,
+  }
+  showVariantForm.value = true
+}
+
+async function saveVariant() {
+  if (!showVariants.value) return
+  try {
+    if (editingVariant.value) {
+      await adminApi.updateVariant(editingVariant.value.id, variantForm.value)
+    } else {
+      await adminApi.createVariant(showVariants.value, variantForm.value)
+    }
+    showVariantForm.value = false
+    await loadVariants(showVariants.value)
+    await load()
+  } catch (e: any) {
+    alert(e.response?.data?.error || t('common.operation_failed'))
+  }
+}
+
+async function removeVariant(id: number) {
+  if (!confirm(t('common.confirm_delete'))) return
+  if (!showVariants.value) return
+  try {
+    await adminApi.deleteVariant(id)
+    await loadVariants(showVariants.value)
+    await load()
+  } catch (e: any) {
+    alert(e.response?.data?.error || t('common.operation_failed'))
+  }
+}
+
+// Compute available variants for restock
+const restockVariants = computed(() => {
+  if (!restockForm.value.product_id) return []
+  const product = products.value.find(p => p.id === restockForm.value.product_id)
+  return product?.variants || []
+})
 
 onMounted(load)
 </script>
@@ -302,8 +391,15 @@ onMounted(load)
         <form @submit.prevent="submitRestock" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('card.product_select') }}</label>
-            <select v-model="restockForm.product_id" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+            <select v-model="restockForm.product_id" @change="restockVariantId = null" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
               <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div v-if="restockVariants.length > 0">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.variant') }}</label>
+            <select v-model="restockVariantId" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+              <option :value="null">-- {{ $t('product.select_variant') }} --</option>
+              <option v-for="v in restockVariants" :key="v.id" :value="v.id">{{ v.name }} (¥{{ v.price?.toFixed(2) }})</option>
             </select>
           </div>
           <div>
@@ -336,7 +432,8 @@ onMounted(load)
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-          <tr v-for="p in products" :key="p.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+          <template v-for="p in products" :key="p.id">
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
             <td class="px-4 py-3"><input type="checkbox" :checked="selectedIds.includes(p.id)" @change="toggleSelect(p.id)" /></td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.id }}</td>
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ p.name }}</td>
@@ -350,15 +447,91 @@ onMounted(load)
               </span>
             </td>
             <td class="px-4 py-3 space-x-2">
+              <button @click="toggleVariants(p.id)" class="text-purple-600 hover:text-purple-800 text-xs">{{ $t('product.variants') }}</button>
               <button @click="openEdit(p)" class="text-blue-600 hover:text-blue-800 text-xs">{{ $t('common.edit') }}</button>
               <button @click="remove(p.id)" class="text-red-600 hover:text-red-800 text-xs">{{ $t('common.delete') }}</button>
             </td>
           </tr>
+          <!-- Variant expansion row -->
+          <tr v-if="showVariants === p.id" :key="'v-' + p.id" class="bg-gray-50/50 dark:bg-gray-800/50">
+            <td :colspan="9" class="px-6 py-4">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ $t('product.variants') }}</span>
+                <button @click="openAddVariant" class="px-2.5 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition-colors">+ {{ $t('product.add_variant') }}</button>
+              </div>
+              <div v-if="variantLoading" class="text-gray-400 text-sm py-2">{{ $t('common.loading') }}</div>
+              <div v-else-if="variantList.length === 0" class="text-gray-400 text-sm py-2">{{ $t('product.no_variants') }}</div>
+              <table v-else class="w-full text-xs">
+                <thead>
+                  <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    <th class="px-3 py-2 font-medium">{{ $t('product.variant_name') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ $t('product.price') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ $t('product.stock') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ $t('product.sales') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ $t('common.status') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ $t('common.actions') }}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                  <tr v-for="v in variantList" :key="v.id" class="hover:bg-white dark:hover:bg-gray-700">
+                    <td class="px-3 py-2 text-gray-800 dark:text-gray-100">{{ v.name }}</td>
+                    <td class="px-3 py-2 text-gray-800 dark:text-gray-100">¥{{ v.price?.toFixed(2) }}</td>
+                    <td class="px-3 py-2" :class="(v.stock_count ?? 0) < 5 ? 'text-red-600 font-medium' : 'text-gray-600 dark:text-gray-300'">{{ v.stock_count ?? 0 }}</td>
+                    <td class="px-3 py-2 text-gray-600 dark:text-gray-300">{{ v.sales_count ?? 0 }}</td>
+                    <td class="px-3 py-2">
+                      <span :class="v.is_active ? 'text-green-600 bg-green-50' : 'text-gray-500 bg-gray-100'" class="inline-block px-1.5 py-0.5 rounded text-xs font-medium">
+                        {{ v.is_active ? $t('product.active') : $t('product.inactive') }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-2 space-x-2">
+                      <button @click="openEditVariant(v)" class="text-blue-600 hover:text-blue-800">{{ $t('common.edit') }}</button>
+                      <button @click="removeVariant(v.id)" class="text-red-600 hover:text-red-800">{{ $t('common.delete') }}</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          </template>
           <tr v-if="products.length === 0">
             <td colspan="9" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Variant form modal -->
+    <div v-if="showVariantForm" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="showVariantForm = false">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+        <h3 class="text-base font-medium text-gray-800 dark:text-gray-100 mb-4">{{ editingVariant ? $t('product.edit_variant') : $t('product.add_variant') }}</h3>
+        <form @submit.prevent="saveVariant" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.variant_name') }}</label>
+            <input v-model="variantForm.name" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.price') }} (¥)</label>
+              <input v-model.number="variantForm.price" type="number" step="0.01" min="0" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.sort_order') }}</label>
+              <input v-model.number="variantForm.sort_order" type="number" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.description') }}</label>
+            <textarea v-model="variantForm.description" rows="2" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" />
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"><input v-model="variantForm.is_active" type="checkbox" /> {{ $t('product.enable_product') }}</label>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" @click="showVariantForm = false" class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">{{ $t('common.cancel') }}</button>
+            <button type="submit" class="px-4 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700">{{ $t('common.save') }}</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </template>

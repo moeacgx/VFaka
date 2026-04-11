@@ -43,6 +43,8 @@ pub enum Relation {
     Cards,
     #[sea_orm(has_many = "super::order::Entity")]
     Orders,
+    #[sea_orm(has_many = "super::product_variant::Entity")]
+    Variants,
 }
 
 impl Related<super::category::Entity> for Entity {
@@ -60,6 +62,12 @@ impl Related<super::card::Entity> for Entity {
 impl Related<super::order::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Orders.def()
+    }
+}
+
+impl Related<super::product_variant::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Variants.def()
     }
 }
 

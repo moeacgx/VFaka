@@ -2,17 +2,21 @@ use sea_orm::prelude::Expr;
 use sea_orm::*;
 
 use aff_common::error::{AppError, AppResult};
-use aff_entity::entities::{card, product};
+use aff_entity::entities::{card, product, product_variant};
 
 pub async fn list_cards(
     db: &DatabaseConnection,
     product_id: Option<i32>,
+    variant_id: Option<i32>,
     status: Option<String>,
 ) -> AppResult<Vec<card::Model>> {
     let mut query = card::Entity::find().order_by_desc(card::Column::CreatedAt);
 
     if let Some(pid) = product_id {
         query = query.filter(card::Column::ProductId.eq(pid));
+    }
+    if let Some(vid) = variant_id {
+        query = query.filter(card::Column::VariantId.eq(vid));
     }
     if let Some(s) = status {
         query = query.filter(card::Column::Status.eq(s));
@@ -27,6 +31,7 @@ pub async fn list_cards(
 pub async fn import_cards(
     db: &DatabaseConnection,
     product_id: i32,
+    variant_id: Option<i32>,
     text: &str,
 ) -> AppResult<u64> {
     // Verify product exists
@@ -35,6 +40,18 @@ pub async fn import_cards(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Product {} not found", product_id)))?;
+
+    // Verify variant exists (if provided)
+    if let Some(vid) = variant_id {
+        let variant = product_variant::Entity::find_by_id(vid)
+            .one(db)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound(format!("Variant {} not found", vid)))?;
+        if variant.product_id != product_id {
+            return Err(AppError::BadRequest("Variant does not belong to this product".into()));
+        }
+    }
 
     let lines: Vec<&str> = text
         .lines()
@@ -51,6 +68,7 @@ pub async fn import_cards(
         .iter()
         .map(|line| card::ActiveModel {
             product_id: Set(product_id),
+            variant_id: Set(variant_id),
             content: Set(ToString::to_string(line)),
             status: Set("available".to_string()),
             order_id: Set(None),
@@ -67,23 +85,11 @@ pub async fn import_cards(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // Update product stock_count
-    let available_count = card::Entity::find()
-        .filter(card::Column::ProductId.eq(product_id))
-        .filter(card::Column::Status.eq("available"))
-        .count(db)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-    let prod = product::Entity::find_by_id(product_id)
-        .one(db)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?
-        .ok_or_else(|| AppError::NotFound(format!("Product {} not found", product_id)))?;
-
-    let mut prod_model: product::ActiveModel = prod.into();
-    prod_model.stock_count = Set(available_count as i32);
-    prod_model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    // Sync stock counts
+    sync_product_stock(db, product_id).await?;
+    if let Some(vid) = variant_id {
+        sync_variant_stock(db, vid).await?;
+    }
 
     Ok(count)
 }
@@ -103,14 +109,17 @@ pub async fn delete_card(db: &DatabaseConnection, id: i32) -> AppResult<()> {
     }
 
     let product_id = card_model.product_id;
+    let variant_id = card_model.variant_id;
 
     card::Entity::delete_by_id(id)
         .exec(db)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // Update product stock_count
-    sync_stock_count(db, product_id).await?;
+    sync_product_stock(db, product_id).await?;
+    if let Some(vid) = variant_id {
+        sync_variant_stock(db, vid).await?;
+    }
 
     Ok(())
 }
@@ -118,15 +127,24 @@ pub async fn delete_card(db: &DatabaseConnection, id: i32) -> AppResult<()> {
 pub async fn lock_cards(
     db: &DatabaseConnection,
     product_id: i32,
+    variant_id: Option<i32>,
     quantity: i32,
     order_id: i32,
 ) -> AppResult<Vec<card::Model>> {
     let txn = db.begin().await.map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // SELECT candidate cards within transaction
-    let cards = card::Entity::find()
+    // SELECT candidate cards within transaction, filtered by variant
+    let mut card_query = card::Entity::find()
         .filter(card::Column::ProductId.eq(product_id))
-        .filter(card::Column::Status.eq("available"))
+        .filter(card::Column::Status.eq("available"));
+
+    if let Some(vid) = variant_id {
+        card_query = card_query.filter(card::Column::VariantId.eq(vid));
+    } else {
+        card_query = card_query.filter(card::Column::VariantId.is_null());
+    }
+
+    let cards = card_query
         .order_by_asc(card::Column::Id)
         .limit(quantity as u64)
         .all(&txn)
@@ -172,7 +190,10 @@ pub async fn lock_cards(
 
     txn.commit().await.map_err(|e| AppError::Internal(e.to_string()))?;
 
-    sync_stock_count(db, product_id).await?;
+    sync_product_stock(db, product_id).await?;
+    if let Some(vid) = variant_id {
+        sync_variant_stock(db, vid).await?;
+    }
 
     Ok(updated_cards)
 }
@@ -182,7 +203,7 @@ pub async fn release_cards(db: &DatabaseConnection, card_ids: &[i32]) -> AppResu
         return Ok(());
     }
 
-    // Get product_ids for stock sync
+    // Get product_ids and variant_ids for stock sync
     let cards = card::Entity::find()
         .filter(card::Column::Id.is_in(card_ids.to_vec()))
         .all(db)
@@ -190,6 +211,7 @@ pub async fn release_cards(db: &DatabaseConnection, card_ids: &[i32]) -> AppResu
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     let product_ids: Vec<i32> = cards.iter().map(|c| c.product_id).collect::<std::collections::HashSet<_>>().into_iter().collect();
+    let variant_ids: Vec<i32> = cards.iter().filter_map(|c| c.variant_id).collect::<std::collections::HashSet<_>>().into_iter().collect();
 
     card::Entity::update_many()
         .col_expr(card::Column::Status, Expr::value("available"))
@@ -200,7 +222,10 @@ pub async fn release_cards(db: &DatabaseConnection, card_ids: &[i32]) -> AppResu
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     for pid in product_ids {
-        sync_stock_count(db, pid).await?;
+        sync_product_stock(db, pid).await?;
+    }
+    for vid in variant_ids {
+        sync_variant_stock(db, vid).await?;
     }
 
     Ok(())
@@ -229,7 +254,7 @@ pub async fn deliver_cards(
     Ok(())
 }
 
-async fn sync_stock_count(db: &DatabaseConnection, product_id: i32) -> AppResult<()> {
+pub async fn sync_product_stock(db: &DatabaseConnection, product_id: i32) -> AppResult<()> {
     let available_count = card::Entity::find()
         .filter(card::Column::ProductId.eq(product_id))
         .filter(card::Column::Status.eq("available"))
@@ -244,6 +269,28 @@ async fn sync_stock_count(db: &DatabaseConnection, product_id: i32) -> AppResult
 
     if let Some(p) = prod {
         let mut model: product::ActiveModel = p.into();
+        model.stock_count = Set(available_count as i32);
+        model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+
+    Ok(())
+}
+
+pub async fn sync_variant_stock(db: &DatabaseConnection, variant_id: i32) -> AppResult<()> {
+    let available_count = card::Entity::find()
+        .filter(card::Column::VariantId.eq(variant_id))
+        .filter(card::Column::Status.eq("available"))
+        .count(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let variant = product_variant::Entity::find_by_id(variant_id)
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if let Some(v) = variant {
+        let mut model: product_variant::ActiveModel = v.into();
         model.stock_count = Set(available_count as i32);
         model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
     }

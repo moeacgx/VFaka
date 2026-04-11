@@ -62,4 +62,10 @@ export const adminApi = {
   updateCoupon: (id: number, data: any) => request.put(`/admin/coupons/${id}`, data),
   deleteCoupon: (id: number) => request.delete(`/admin/coupons/${id}`),
   batchDeleteCoupons: (ids: number[]) => request.post('/admin/coupons/batch-delete', { ids }),
+
+  // Variants
+  getVariants: (productId: number) => request.get(`/admin/variants/product/${productId}`),
+  createVariant: (productId: number, data: any) => request.post(`/admin/variants/product/${productId}`, data),
+  updateVariant: (id: number, data: any) => request.put(`/admin/variants/${id}`, data),
+  deleteVariant: (id: number) => request.delete(`/admin/variants/${id}`),
 }

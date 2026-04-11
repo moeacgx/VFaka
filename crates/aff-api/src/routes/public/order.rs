@@ -59,15 +59,31 @@ pub async fn create_order(
         return Err(AppError::BadRequest("Product is not available".into()));
     }
 
-    // 2. Check stock
-    if product.stock_count < dto.quantity {
+    // 2. Resolve variant (if applicable)
+    let has_variants = !product.variants.is_empty();
+    let (unit_price, variant_id, variant_name, check_stock) = if has_variants {
+        let vid = dto.variant_id.ok_or_else(|| {
+            AppError::BadRequest("This product requires a variant selection".into())
+        })?;
+        let variant = product
+            .variants
+            .iter()
+            .find(|v| v.id == vid && v.is_active)
+            .ok_or_else(|| AppError::BadRequest("Invalid or inactive variant".into()))?;
+        (variant.price, Some(vid), Some(variant.name.clone()), variant.stock_count)
+    } else {
+        (product.price, None, None, product.stock_count)
+    };
+
+    // 3. Check stock
+    if check_stock < dto.quantity {
         return Err(AppError::Conflict(format!(
             "Insufficient stock: available {}, requested {}",
-            product.stock_count, dto.quantity
+            check_stock, dto.quantity
         )));
     }
 
-    // 3. Quantity bounds
+    // 4. Quantity bounds
     if dto.quantity < 1 {
         return Err(AppError::BadRequest("Quantity must be at least 1".into()));
     }
@@ -93,7 +109,7 @@ pub async fn create_order(
     let channel = determine_channel(&dto.payment_method)?;
 
     // 7. Calculate total and apply coupon
-    let subtotal = product.price * dto.quantity as f64;
+    let subtotal = unit_price * dto.quantity as f64;
     let mut discount_amount = 0.0;
     let mut coupon_code_used: Option<String> = None;
 
@@ -146,6 +162,8 @@ pub async fn create_order(
         Some(client_ip.clone()),
         coupon_code_used.clone(),
         discount_amount,
+        variant_id,
+        variant_name,
     )
     .await?;
 
@@ -155,7 +173,7 @@ pub async fn create_order(
     }
 
     // 10. Lock cards (bind to order)
-    let _locked_cards = card_service::lock_cards(db.get_ref(), dto.product_id, dto.quantity, order.id).await?;
+    let _locked_cards = card_service::lock_cards(db.get_ref(), dto.product_id, variant_id, dto.quantity, order.id).await?;
 
     // 11. Load payment config from DB
     let configs = payment_config_service::list_configs(db.get_ref()).await?;

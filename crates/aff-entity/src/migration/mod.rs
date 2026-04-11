@@ -3,6 +3,7 @@ pub mod m20260406_000002_aff_tiers;
 pub mod m20260406_000003_media_and_notify;
 pub mod m20260406_000004_coupons;
 pub mod m20260406_000005_security_hardening;
+pub mod m20260411_000006_product_variants;
 
 use sea_orm_migration::prelude::*;
 
@@ -17,6 +18,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260406_000003_media_and_notify::Migration),
             Box::new(m20260406_000004_coupons::Migration),
             Box::new(m20260406_000005_security_hardening::Migration),
+            Box::new(m20260411_000006_product_variants::Migration),
         ]
     }
 }

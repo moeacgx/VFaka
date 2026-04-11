@@ -9,6 +9,7 @@ use aff_entity::dto::ImportCardsDto;
 #[derive(Debug, Deserialize)]
 pub struct CardListQuery {
     pub product_id: Option<i32>,
+    pub variant_id: Option<i32>,
     pub status: Option<String>,
 }
 
@@ -24,7 +25,7 @@ async fn list(
     query: web::Query<CardListQuery>,
 ) -> AppResult<HttpResponse> {
     let cards =
-        card_service::list_cards(&db, query.product_id, query.status.clone()).await?;
+        card_service::list_cards(&db, query.product_id, query.variant_id, query.status.clone()).await?;
     Ok(HttpResponse::Ok().json(cards))
 }
 
@@ -33,7 +34,7 @@ async fn import(
     body: web::Json<ImportCardsDto>,
 ) -> AppResult<HttpResponse> {
     let dto = body.into_inner();
-    let count = card_service::import_cards(&db, dto.product_id, &dto.cards).await?;
+    let count = card_service::import_cards(&db, dto.product_id, dto.variant_id, &dto.cards).await?;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true,
         "imported": count,

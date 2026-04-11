@@ -1,11 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { publicApi } from '../../api/public'
 import { useAffCode } from '../../composables/useAffCode'
 
 const { t } = useI18n()
+
+interface Variant {
+  id: number
+  product_id: number
+  name: string
+  price: number
+  description: string | null
+  sort_order: number
+  is_active: boolean
+  stock_count: number
+  sales_count: number
+}
 
 interface Category {
   id: number
@@ -34,6 +46,7 @@ interface Product {
   max_quantity: number
   image_url?: string
   video_url?: string
+  variants?: Variant[]
 }
 
 const router = useRouter()
@@ -48,6 +61,7 @@ const error = ref('')
 // Modal state
 const showModal = ref(false)
 const selectedProduct = ref<Product | null>(null)
+const selectedVariantId = ref<number | null>(null)
 const orderEmail = ref('')
 const orderQuantity = ref(1)
 const paymentMethod = ref('')
@@ -71,6 +85,28 @@ const filteredProducts = computed(() => {
   return products.value.filter(p => p.category_id === activeCategory.value)
 })
 
+const activeVariants = computed(() => {
+  if (!selectedProduct.value?.variants) return []
+  return selectedProduct.value.variants.filter(v => v.is_active)
+})
+
+const hasVariants = computed(() => activeVariants.value.length > 0)
+
+const selectedVariant = computed(() => {
+  if (!hasVariants.value || !selectedVariantId.value) return null
+  return activeVariants.value.find(v => v.id === selectedVariantId.value) || null
+})
+
+const currentPrice = computed(() => {
+  if (selectedVariant.value) return selectedVariant.value.price
+  return selectedProduct.value?.price || 0
+})
+
+const currentStock = computed(() => {
+  if (selectedVariant.value) return selectedVariant.value.stock_count
+  return selectedProduct.value?.stock_count || 0
+})
+
 const availableFiat = computed(() => {
   if (!selectedProduct.value) return []
   const p = selectedProduct.value
@@ -92,8 +128,7 @@ const availableCrypto = computed(() => {
 })
 
 const totalPrice = computed(() => {
-  if (!selectedProduct.value) return 0
-  const subtotal = selectedProduct.value.price * orderQuantity.value
+  const subtotal = currentPrice.value * orderQuantity.value
   if (couponResult.value?.valid && couponResult.value.discount_amount) {
     return Math.max(subtotal - couponResult.value.discount_amount, 0.01)
   }
@@ -101,8 +136,16 @@ const totalPrice = computed(() => {
 })
 
 const subtotalPrice = computed(() => {
-  if (!selectedProduct.value) return 0
-  return selectedProduct.value.price * orderQuantity.value
+  return currentPrice.value * orderQuantity.value
+})
+
+// Reset variant when modal opens or product changes
+watch(selectedProduct, () => {
+  if (selectedProduct.value && hasVariants.value) {
+    selectedVariantId.value = activeVariants.value[0]?.id || null
+  } else {
+    selectedVariantId.value = null
+  }
 })
 
 function onCouponInput() {
@@ -120,7 +163,7 @@ async function validateCoupon(code: string) {
     const res = await publicApi.validateCoupon({
       code,
       product_id: selectedProduct.value.id,
-      amount: selectedProduct.value.price * orderQuantity.value,
+      amount: currentPrice.value * orderQuantity.value,
     })
     couponResult.value = res.data
   } catch {
@@ -128,6 +171,19 @@ async function validateCoupon(code: string) {
   } finally {
     couponLoading.value = false
   }
+}
+
+function getProductDisplayPrice(product: Product): string {
+  if (product.variants && product.variants.length > 0) {
+    const active = product.variants.filter(v => v.is_active)
+    if (active.length === 0) return `¥${product.price.toFixed(2)}`
+    const prices = active.map(v => v.price)
+    const min = Math.min(...prices)
+    const max = Math.max(...prices)
+    if (min === max) return `¥${min.toFixed(2)}`
+    return `¥${min.toFixed(2)}~${max.toFixed(2)}`
+  }
+  return `¥${product.price.toFixed(2)}`
 }
 
 function truncate(text: string | null, len: number) {
@@ -150,6 +206,7 @@ function openBuyModal(product: Product) {
 function closeModal() {
   showModal.value = false
   selectedProduct.value = null
+  selectedVariantId.value = null
 }
 
 function adjustQuantity(delta: number) {
@@ -166,6 +223,10 @@ async function submitOrder() {
     orderError.value = t('common.enter_email_required')
     return
   }
+  if (hasVariants.value && !selectedVariantId.value) {
+    orderError.value = t('product.select_variant_required')
+    return
+  }
   if (!paymentMethod.value) {
     orderError.value = t('product.select_payment_required')
     return
@@ -178,6 +239,7 @@ async function submitOrder() {
     const affCode = getAffCode()
     const res = await publicApi.createOrder({
       product_id: selectedProduct.value.id,
+      variant_id: selectedVariantId.value || undefined,
       quantity: orderQuantity.value,
       email: orderEmail.value.trim(),
       payment_method: paymentMethod.value,
@@ -211,7 +273,6 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-  // Save aff code from URL if present
   getAffCode()
 })
 </script>
@@ -271,7 +332,7 @@ onMounted(async () => {
             <p class="text-xs text-gray-400 dark:text-gray-500 mb-3 flex-1 leading-relaxed">{{ truncate(product.description, 60) }}</p>
             <div class="flex items-end justify-between mt-auto">
               <div>
-                <span class="text-lg font-bold text-gray-900 dark:text-white">¥{{ product.price.toFixed(2) }}</span>
+                <span class="text-lg font-bold text-gray-900 dark:text-white">{{ getProductDisplayPrice(product) }}</span>
                 <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{{ $t('product.stock') }} {{ product.stock_count }}</span>
               </div>
               <button
@@ -308,10 +369,33 @@ onMounted(async () => {
           <!-- Product image in modal -->
           <img v-if="selectedProduct?.image_url" :src="selectedProduct.image_url" :alt="selectedProduct.name" class="w-full h-48 object-cover rounded-xl mb-5" />
 
+          <!-- Variant selector -->
+          <div v-if="hasVariants" class="mb-5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">{{ $t('product.select_variant') }}</label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="v in activeVariants"
+                :key="v.id"
+                @click="selectedVariantId = v.id"
+                :class="[
+                  'px-3 py-2 rounded-lg border text-sm font-medium transition-all',
+                  selectedVariantId === v.id
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'
+                ]"
+              >
+                <span>{{ v.name }}</span>
+                <span class="ml-1 text-xs opacity-70">¥{{ v.price.toFixed(2) }}</span>
+              </button>
+            </div>
+            <p v-if="selectedVariant?.description" class="mt-2 text-xs text-gray-400 dark:text-gray-500">{{ selectedVariant.description }}</p>
+          </div>
+
           <!-- Price -->
           <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-5">
             <div class="text-sm text-gray-500 dark:text-gray-400">{{ $t('product.price') }}</div>
-            <div class="text-2xl font-bold text-gray-900 dark:text-white">¥{{ selectedProduct?.price.toFixed(2) }}</div>
+            <div class="text-2xl font-bold text-gray-900 dark:text-white">¥{{ currentPrice.toFixed(2) }}</div>
+            <div v-if="hasVariants" class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ $t('product.stock') }} {{ currentStock }}</div>
           </div>
 
           <!-- Email -->

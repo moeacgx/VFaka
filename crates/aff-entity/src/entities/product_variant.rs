@@ -2,33 +2,18 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "orders")]
+#[sea_orm(table_name = "product_variants")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    #[sea_orm(unique)]
-    pub order_no: String,
     pub product_id: i32,
-    pub variant_id: Option<i32>,
-    pub variant_name: Option<String>,
-    pub quantity: i32,
-    pub total_amount: f64,
-    pub email: String,
-    pub payment_method: String,
-    pub payment_channel: String,
-    pub status: String,
-    pub trade_no: Option<String>,
-    pub pay_time: Option<DateTimeUtc>,
-    pub aff_code: Option<String>,
-    pub aff_user_email: Option<String>,
-    pub aff_commission: f64,
-    pub cards_snapshot: Option<String>,
-    pub post_action_result: Option<String>,
-    pub ip_address: Option<String>,
-    pub coupon_code: Option<String>,
-    pub discount_amount: f64,
-    pub query_token: Option<String>,
-    pub post_action_status: Option<String>,
+    pub name: String,
+    pub price: f64,
+    pub description: Option<String>,
+    pub sort_order: i32,
+    pub is_active: bool,
+    pub stock_count: i32,
+    pub sales_count: i32,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

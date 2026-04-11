@@ -8,9 +8,10 @@ const loading = ref(true)
 const cards = ref<any[]>([])
 const products = ref<any[]>([])
 const filterProduct = ref<number | string>('')
+const filterVariant = ref<number | string>('')
 const filterStatus = ref('')
 const showImport = ref(false)
-const importForm = ref({ product_id: null as number | null, cards: '' })
+const importForm = ref({ product_id: null as number | null, variant_id: null as number | null, cards: '' })
 
 const statusMap = computed<Record<string, string>>(() => ({
   available: t('card.available'),
@@ -18,11 +19,24 @@ const statusMap = computed<Record<string, string>>(() => ({
   locked: t('card.locked'),
 }))
 
+const importVariants = computed(() => {
+  if (!importForm.value.product_id) return []
+  const product = products.value.find(p => p.id === importForm.value.product_id)
+  return product?.variants || []
+})
+
+const filterVariants = computed(() => {
+  if (!filterProduct.value) return []
+  const product = products.value.find(p => p.id === Number(filterProduct.value))
+  return product?.variants || []
+})
+
 async function load() {
   loading.value = true
   try {
     const params: any = {}
     if (filterProduct.value) params.product_id = filterProduct.value
+    if (filterVariant.value) params.variant_id = filterVariant.value
     if (filterStatus.value) params.status = filterStatus.value
     const [cRes, pRes] = await Promise.all([adminApi.getCards(params), adminApi.getProducts()])
     cards.value = cRes.data || []
@@ -32,6 +46,20 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+function onFilterProductChange() {
+  filterVariant.value = ''
+  load()
+}
+
+function getVariantName(variantId: number | null | undefined) {
+  if (!variantId) return ''
+  for (const p of products.value) {
+    const v = p.variants?.find((v: any) => v.id === variantId)
+    if (v) return v.name
+  }
+  return ''
 }
 
 function maskContent(s: string) {
@@ -45,7 +73,7 @@ function getProductName(id: number) {
 }
 
 function openImport() {
-  importForm.value = { product_id: products.value[0]?.id || null, cards: '' }
+  importForm.value = { product_id: products.value[0]?.id || null, variant_id: null, cards: '' }
   showImport.value = true
 }
 
@@ -56,7 +84,11 @@ async function submitImport() {
   }
   try {
     const cardsList = importForm.value.cards.split('\n').map(s => s.trim()).filter(Boolean)
-    await adminApi.importCards({ product_id: importForm.value.product_id, cards: cardsList.join('\n') })
+    await adminApi.importCards({
+      product_id: importForm.value.product_id,
+      variant_id: importForm.value.variant_id || undefined,
+      cards: cardsList.join('\n'),
+    })
     showImport.value = false
     await load()
     alert(t('card.import_success', { count: cardsList.length }))
@@ -83,9 +115,13 @@ onMounted(load)
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
       <h3 class="text-base font-medium text-gray-800 dark:text-gray-100">{{ $t('card.card_list') }}</h3>
       <div class="flex flex-wrap items-center gap-2">
-        <select v-model="filterProduct" @change="load" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+        <select v-model="filterProduct" @change="onFilterProductChange" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
           <option value="">{{ $t('card.all_products') }}</option>
           <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
+        </select>
+        <select v-if="filterVariants.length > 0" v-model="filterVariant" @change="load" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+          <option value="">{{ $t('product.all_variants') }}</option>
+          <option v-for="v in filterVariants" :key="v.id" :value="v.id">{{ v.name }}</option>
         </select>
         <select v-model="filterStatus" @change="load" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
           <option value="">{{ $t('card.all_status') }}</option>
@@ -104,8 +140,15 @@ onMounted(load)
         <form @submit.prevent="submitImport" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('card.product_select') }}</label>
-            <select v-model="importForm.product_id" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+            <select v-model="importForm.product_id" @change="importForm.variant_id = null" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
               <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div v-if="importVariants.length > 0">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.variant') }}</label>
+            <select v-model="importForm.variant_id" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+              <option :value="null">-- {{ $t('product.select_variant') }} --</option>
+              <option v-for="v in importVariants" :key="v.id" :value="v.id">{{ v.name }} (¥{{ v.price?.toFixed(2) }})</option>
             </select>
           </div>
           <div>
@@ -128,6 +171,7 @@ onMounted(load)
           <tr class="bg-gray-50 dark:bg-gray-900 text-left text-gray-500 dark:text-gray-400">
             <th class="px-4 py-3 font-medium">ID</th>
             <th class="px-4 py-3 font-medium">{{ $t('dashboard.product') }}</th>
+            <th class="px-4 py-3 font-medium">{{ $t('product.variant') }}</th>
             <th class="px-4 py-3 font-medium">{{ $t('card.content') }}</th>
             <th class="px-4 py-3 font-medium">{{ $t('common.status') }}</th>
             <th class="px-4 py-3 font-medium">{{ $t('common.created_at') }}</th>
@@ -138,6 +182,7 @@ onMounted(load)
           <tr v-for="card in cards" :key="card.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ card.id }}</td>
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ getProductName(card.product_id) }}</td>
+            <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-xs">{{ getVariantName(card.variant_id) || '-' }}</td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300 font-mono text-xs">{{ maskContent(card.content) }}</td>
             <td class="px-4 py-3">
               <span
@@ -157,7 +202,7 @@ onMounted(load)
             </td>
           </tr>
           <tr v-if="cards.length === 0">
-            <td colspan="6" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
+            <td colspan="7" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
           </tr>
         </tbody>
       </table>

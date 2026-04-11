@@ -2,6 +2,7 @@ pub mod admin;
 pub mod category;
 pub mod coupon;
 pub mod product;
+pub mod product_variant;
 pub mod card;
 pub mod order;
 pub mod aff_tier;

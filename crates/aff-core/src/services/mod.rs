@@ -8,5 +8,6 @@ pub mod payment_config_service;
 pub mod post_action;
 pub mod product_service;
 pub mod settings_service;
+pub mod variant_service;
 pub mod withdraw_service;
 pub mod withdrawal_service;

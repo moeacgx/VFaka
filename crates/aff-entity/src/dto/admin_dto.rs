@@ -35,5 +35,6 @@ pub struct UpdateCategoryDto {
 #[derive(Debug, Deserialize)]
 pub struct ImportCardsDto {
     pub product_id: i32,
+    pub variant_id: Option<i32>,
     pub cards: String,
 }
