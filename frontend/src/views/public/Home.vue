@@ -142,7 +142,8 @@ const subtotalPrice = computed(() => {
 // Reset variant when modal opens or product changes
 watch(selectedProduct, () => {
   if (selectedProduct.value && hasVariants.value) {
-    selectedVariantId.value = activeVariants.value[0]?.id || null
+    const inStock = activeVariants.value.find(v => v.stock_count > 0)
+    selectedVariantId.value = inStock?.id || activeVariants.value[0]?.id || null
   } else {
     selectedVariantId.value = null
   }
@@ -394,16 +395,20 @@ onMounted(async () => {
               <button
                 v-for="v in activeVariants"
                 :key="v.id"
-                @click="selectedVariantId = v.id"
+                @click="v.stock_count > 0 ? selectedVariantId = v.id : null"
+                :disabled="v.stock_count <= 0"
                 :class="[
                   'px-3 py-2 rounded-lg border text-sm font-medium transition-all',
-                  selectedVariantId === v.id
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500'
-                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'
+                  v.stock_count <= 0
+                    ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                    : selectedVariantId === v.id
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500'
+                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500'
                 ]"
               >
                 <span>{{ v.name }}</span>
                 <span class="ml-1 text-xs opacity-70">¥{{ v.price.toFixed(2) }}</span>
+                <span class="ml-1 text-xs opacity-50">({{ v.stock_count }})</span>
               </button>
             </div>
             <p v-if="selectedVariant?.description" class="mt-2 text-xs text-gray-400 dark:text-gray-500">{{ selectedVariant.description }}</p>
@@ -413,7 +418,7 @@ onMounted(async () => {
           <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-5">
             <div class="text-sm text-gray-500 dark:text-gray-400">{{ $t('product.price') }}</div>
             <div class="text-2xl font-bold text-gray-900 dark:text-white">¥{{ currentPrice.toFixed(2) }}</div>
-            <div v-if="hasVariants" class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ $t('product.stock') }} {{ currentStock }}</div>
+            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ $t('product.stock') }} {{ currentStock }}</div>
           </div>
 
           <!-- Email -->
