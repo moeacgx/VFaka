@@ -268,10 +268,10 @@ async function submitOrder() {
     const data = res.data
     closeModal()
     if (data.payment_url) {
-      window.location.href = data.payment_url
-    } else {
-      router.push({ path: '/order', query: { no: data.order_no, token: data.query_token } })
+      // Open payment in new tab, stay on order query page so user doesn't lose order info
+      window.open(data.payment_url, '_blank')
     }
+    router.push({ path: '/order', query: { no: data.order_no, token: data.query_token } })
   } catch (e: any) {
     orderError.value = e.response?.data?.message || e.response?.data?.error || t('product.create_order_failed')
   } finally {
