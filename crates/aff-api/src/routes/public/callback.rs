@@ -254,9 +254,11 @@ pub async fn epay_notify(
     db: web::Data<DatabaseConnection>,
     config: web::Data<AppConfig>,
     req: HttpRequest,
+    body: web::Bytes,
 ) -> AppResult<HttpResponse> {
     let query_string = req.query_string().to_string();
-    info!(qs = %query_string, "Epay notify callback received");
+    let body_str = String::from_utf8_lossy(&body).to_string();
+    info!(qs = %query_string, body = %body_str, "Epay notify callback received");
 
     // Load epay config
     let configs = payment_config_service::list_configs(db.get_ref()).await?;
@@ -269,7 +271,7 @@ pub async fn epay_notify(
 
     let raw = CallbackRawData {
         query_string: Some(query_string),
-        body: None,
+        body: if body_str.is_empty() { None } else { Some(body_str) },
         headers: std::collections::HashMap::new(),
     };
 
@@ -468,6 +470,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/pay")
             .route("/epay/notify", web::get().to(epay_notify))
+            .route("/epay/notify", web::post().to(epay_notify))
             .route("/epay/return", web::get().to(epay_return))
             .route("/tokenpay/notify", web::post().to(tokenpay_notify)),
     );

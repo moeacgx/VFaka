@@ -19,15 +19,11 @@ pub struct EpayConfig {
 
 pub struct EpayProvider {
     config: EpayConfig,
-    client: reqwest::Client,
 }
 
 impl EpayProvider {
     pub fn new(config: EpayConfig) -> Self {
-        Self {
-            config,
-            client: reqwest::Client::new(),
-        }
+        Self { config }
     }
 
     fn payment_method_to_epay_type(method: &PaymentMethod) -> AppResult<&'static str> {
@@ -65,15 +61,6 @@ fn md5_verify(sign_str: &str, sign_value: &str, key: &str) -> bool {
     expected == sign_value.to_lowercase()
 }
 
-#[derive(Debug, Deserialize)]
-struct EpayCreateResponse {
-    code: i32,
-    msg: Option<String>,
-    trade_no: Option<String>,
-    payurl: Option<String>,
-    qrcode: Option<String>,
-}
-
 #[async_trait]
 impl PaymentProvider for EpayProvider {
     async fn create_payment(&self, req: PaymentRequest) -> AppResult<PaymentResponse> {
@@ -88,7 +75,6 @@ impl PaymentProvider for EpayProvider {
         params.insert("return_url".to_string(), req.return_url.clone());
         params.insert("name".to_string(), req.product_name.clone());
         params.insert("money".to_string(), money);
-        params.insert("clientip".to_string(), req.client_ip.clone());
 
         let sign_str = build_sign_string(&params);
         let sign = md5_sign(&sign_str, &self.config.key);
@@ -96,46 +82,34 @@ impl PaymentProvider for EpayProvider {
         params.insert("sign".to_string(), sign);
         params.insert("sign_type".to_string(), "MD5".to_string());
 
-        let api_url = format!("{}/mapi.php", self.config.api_url.trim_end_matches('/'));
-        info!(url = %api_url, order_no = %req.order_no, "Creating epay order");
+        // Build redirect URL to submit.php — the standard EPay V1 integration method.
+        // The user's browser navigates here directly; no server-to-server API call needed.
+        let base = self.config.api_url.trim_end_matches('/');
+        let qs: String = url::form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(params.iter())
+            .finish();
+        let pay_url = format!("{}/submit.php?{}", base, qs);
 
-        let resp = self
-            .client
-            .get(&api_url)
-            .query(&params)
-            .send()
-            .await
-            .map_err(|e| AppError::PaymentError(format!("Epay request failed: {}", e)))?;
-
-        let body = resp
-            .text()
-            .await
-            .map_err(|e| AppError::PaymentError(format!("Epay response read failed: {}", e)))?;
-
-        let epay_resp: EpayCreateResponse = serde_json::from_str(&body)
-            .map_err(|e| AppError::PaymentError(format!("Epay response parse failed: {} body={}", e, body)))?;
-
-        if epay_resp.code != 1 {
-            return Err(AppError::PaymentError(format!(
-                "Epay create order failed: {}",
-                epay_resp.msg.unwrap_or_default()
-            )));
-        }
+        info!(order_no = %req.order_no, "EPay submit URL generated");
 
         Ok(PaymentResponse {
-            trade_no: epay_resp.trade_no.unwrap_or_default(),
-            pay_url: epay_resp.payurl,
-            qr_code: epay_resp.qrcode,
+            trade_no: String::new(),
+            pay_url: Some(pay_url),
+            qr_code: None,
         })
     }
 
     async fn verify_callback(&self, raw: &CallbackRawData) -> AppResult<CallbackData> {
-        let qs = raw
+        // EPay V1 sends callback as both GET query and POST body
+        // Try query_string first, fall back to body
+        let data_str = raw
             .query_string
             .as_ref()
-            .ok_or_else(|| AppError::PaymentError("Missing query string in epay callback".into()))?;
+            .filter(|s| !s.is_empty())
+            .or(raw.body.as_ref())
+            .ok_or_else(|| AppError::PaymentError("Missing callback data in epay callback".into()))?;
 
-        let pairs: Vec<(String, String)> = url::form_urlencoded::parse(qs.as_bytes())
+        let pairs: Vec<(String, String)> = url::form_urlencoded::parse(data_str.as_bytes())
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
 
