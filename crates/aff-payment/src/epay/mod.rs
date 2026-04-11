@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use md5;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use aff_common::error::{AppError, AppResult};
 use aff_common::types::PaymentMethod;
@@ -88,9 +88,9 @@ struct EpayApiResponse {
     msg: Option<String>,
     #[serde(default)]
     trade_no: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "pay_url")]
     payurl: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "qr_code", alias = "qr")]
     qrcode: Option<String>,
 }
 
@@ -125,7 +125,12 @@ impl PaymentProvider for EpayProvider {
 
         match self.try_mapi(&mapi_url, &params).await {
             Ok(resp) => {
-                info!(order_no = %req.order_no, "EPay mapi.php succeeded");
+                info!(
+                    order_no = %req.order_no,
+                    pay_url = ?resp.pay_url,
+                    qr_code = ?resp.qr_code,
+                    "EPay mapi.php succeeded"
+                );
                 return Ok(resp);
             }
             Err(e) => {
@@ -255,6 +260,16 @@ impl EpayProvider {
             AppError::PaymentError(format!("mapi parse failed: {} body={}", e, body.chars().take(200).collect::<String>()))
         })?;
 
+        debug!(
+            code = ?epay_resp.code,
+            payurl = ?epay_resp.payurl,
+            qrcode = ?epay_resp.qrcode,
+            trade_no = ?epay_resp.trade_no,
+            msg = ?epay_resp.msg,
+            raw_body = %body.chars().take(500).collect::<String>(),
+            "EPay mapi.php raw response"
+        );
+
         match epay_resp.code {
             Some(1) => {}
             Some(code) => {
@@ -274,10 +289,14 @@ impl EpayProvider {
 
         let pay_url = epay_resp
             .payurl
-            .filter(|u| !u.is_empty());
+            .filter(|u| !u.is_empty())
+            .or_else(|| epay_resp.qrcode.clone().filter(|u| !u.is_empty()));
 
-        if pay_url.is_none() && epay_resp.qrcode.is_none() {
-            return Err(AppError::PaymentError("mapi returned no payurl or qrcode".into()));
+        if pay_url.is_none() {
+            return Err(AppError::PaymentError(format!(
+                "mapi returned no payurl or qrcode: {}",
+                body.chars().take(300).collect::<String>()
+            )));
         }
 
         Ok(PaymentResponse {
