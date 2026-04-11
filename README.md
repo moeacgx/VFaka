@@ -22,6 +22,15 @@
 
 ### Docker 部署 (推荐)
 
+```bash
+# 克隆仓库 (必须加 --recursive 拉取 TokenPay 子模块)
+git clone --recursive https://github.com/Viloze/VFaka.git
+cd VFaka
+
+# 如果已经 clone 但忘了 --recursive：
+# git submodule update --init --recursive
+```
+
 #### SQLite (默认)
 
 ```bash
