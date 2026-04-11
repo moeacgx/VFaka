@@ -39,7 +39,7 @@ fn is_method_allowed(product: &aff_entity::dto::ProductResponse, method: &str) -
         "qqpay" => product.allow_qqpay,
         "usdt_trc20" => product.allow_usdt_trc20,
         "trx" => product.allow_trx,
-        "usdt_erc20" => product.allow_usdt_erc20,
+        "usdt_erc20" | "usdc_erc20" => product.allow_usdt_erc20,
         _ => false,
     }
 }
@@ -131,7 +131,7 @@ pub async fn create_order(
     let channel = determine_channel(&dto.payment_method)?;
 
     // 7. Calculate total and apply coupon
-    let subtotal = unit_price * dto.quantity as f64;
+    let subtotal = aff_core::round_money(unit_price * dto.quantity as f64);
     let mut discount_amount = 0.0;
     let mut coupon_code_used: Option<String> = None;
 
@@ -151,7 +151,7 @@ pub async fn create_order(
         }
     }
 
-    let total_amount = (subtotal - discount_amount).max(0.01);
+    let total_amount = aff_core::round_money((subtotal - discount_amount).max(0.01));
 
     // Enforce minimum order amount to prevent near-free purchases
     if total_amount < 0.10 {

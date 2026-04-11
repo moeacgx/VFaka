@@ -234,6 +234,8 @@
     "code_placeholder": "請輸入您的推廣碼",
     "email_placeholder": "您的信箱地址",
     "enter_code_required": "請輸入推廣碼",
+    "enter_password_required": "請輸入提現密碼",
+    "query_password_placeholder": "提現密碼",
     "password_placeholder": "設定提現密碼",
     "your_code": "您的推廣碼",
     "your_link": "您的推廣連結",

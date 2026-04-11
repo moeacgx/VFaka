@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { adminApi } from '../api/admin'
 import router from '../router'
 
@@ -20,7 +20,9 @@ export const useAdminStore = defineStore('admin', () => {
   const isLoggedIn = computed(() => !!token.value)
   const isSuperAdmin = computed(() => role.value === 'super_admin')
 
-  function handleStorageChange(e: StorageEvent) {
+  // Register storage listener directly in store setup (not lifecycle hooks)
+  // Pinia stores are singletons — this runs once and persists for the app lifetime
+  window.addEventListener('storage', (e: StorageEvent) => {
     if (e.key === 'admin_token') {
       if (!e.newValue) {
         token.value = ''
@@ -35,14 +37,6 @@ export const useAdminStore = defineStore('admin', () => {
     if (e.key === 'admin_username' && e.newValue !== null) {
       username.value = e.newValue
     }
-  }
-
-  onMounted(() => {
-    window.addEventListener('storage', handleStorageChange)
-  })
-
-  onUnmounted(() => {
-    window.removeEventListener('storage', handleStorageChange)
   })
 
   async function login(user: string, password: string) {

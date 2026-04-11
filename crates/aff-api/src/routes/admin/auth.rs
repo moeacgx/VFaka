@@ -23,7 +23,11 @@ pub async fn login(
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "token": token,
-        "admin": admin,
+        "admin": {
+            "id": admin.id,
+            "username": admin.username,
+            "role": admin.role,
+        },
     })))
 }
 

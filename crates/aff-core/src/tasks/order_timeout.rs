@@ -61,6 +61,15 @@ pub async fn cleanup_expired_orders(db: &DatabaseConnection, config: &AppConfig)
             }
         }
 
+        // Release coupon usage if order used one
+        if let Some(ref code) = o.coupon_code {
+            if !code.is_empty() {
+                if let Err(e) = crate::services::coupon_service::unuse_coupon(db, code).await {
+                    tracing::warn!("Failed to release coupon {} for expired order {}: {}", code, o.order_no, e);
+                }
+            }
+        }
+
         // Mark order as expired
         let mut am: order::ActiveModel = o.clone().into();
         am.status = Set("expired".to_string());

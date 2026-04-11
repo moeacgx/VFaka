@@ -1,5 +1,6 @@
 use actix_web::{web, HttpResponse};
-use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, ColumnTrait};
+use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, ColumnTrait, QueryOrder};
+use std::collections::HashMap;
 
 use aff_common::config::AppConfig;
 use aff_common::error::{AppError, AppResult};
@@ -37,7 +38,7 @@ async fn stats(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let today_revenue: f64 = today_paid_orders.iter().map(|o| o.total_amount).sum();
+    let today_income: f64 = today_paid_orders.iter().map(|o| o.total_amount).sum();
 
     let total_products = product::Entity::find()
         .count(db.get_ref())
@@ -50,6 +51,8 @@ async fn stats(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {
         .all(db.get_ref())
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let low_stock_count = all_products.iter().filter(|p| p.stock_count < 5).count();
 
     let low_stock: Vec<serde_json::Value> = all_products
         .into_iter()
@@ -74,12 +77,52 @@ async fn stats(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
+    // Recent 10 orders
+    let recent_order_models: Vec<order::Model> = order::Entity::find()
+        .order_by_desc(order::Column::CreatedAt)
+        .paginate(db.get_ref(), 10)
+        .fetch_page(0)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // Look up product names for recent orders
+    let product_ids: Vec<i32> = recent_order_models.iter().map(|o| o.product_id).collect();
+    let products: Vec<product::Model> = product::Entity::find()
+        .filter(product::Column::Id.is_in(product_ids))
+        .all(db.get_ref())
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let product_map: HashMap<i32, String> = products.into_iter().map(|p| (p.id, p.name)).collect();
+
+    let recent_orders: Vec<serde_json::Value> = recent_order_models
+        .into_iter()
+        .map(|o| {
+            let product_name = product_map
+                .get(&o.product_id)
+                .cloned()
+                .unwrap_or_default();
+            serde_json::json!({
+                "id": o.id,
+                "order_no": o.order_no,
+                "product_name": product_name,
+                "total_amount": o.total_amount,
+                "email": o.email,
+                "status": o.status,
+                "created_at": o.created_at,
+            })
+        })
+        .collect();
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
-        "today_orders": today_orders,
-        "today_revenue": today_revenue,
-        "total_products": total_products,
-        "total_orders": total_orders,
-        "total_available_cards": total_cards,
-        "low_stock_alerts": low_stock,
+        "stats": {
+            "today_orders": today_orders,
+            "today_income": today_income,
+            "total_products": total_products,
+            "total_orders": total_orders,
+            "total_available_cards": total_cards,
+            "low_stock_count": low_stock_count,
+            "low_stock_alerts": low_stock,
+        },
+        "recent_orders": recent_orders,
     })))
 }

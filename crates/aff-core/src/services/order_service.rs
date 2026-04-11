@@ -121,6 +121,27 @@ pub async fn claim_order_for_processing(
     Ok(result.rows_affected == 1)
 }
 
+/// Atomically transition order from pending to paid via CAS.
+/// Returns true if transition happened, false if order was not in pending state.
+pub async fn mark_order_paid(
+    db: &DatabaseConnection,
+    order_no: &str,
+) -> AppResult<bool> {
+    use sea_orm::sea_query::Expr;
+
+    let result = order::Entity::update_many()
+        .col_expr(order::Column::Status, Expr::value("paid"))
+        .col_expr(order::Column::PayTime, Expr::value(Some(chrono::Utc::now())))
+        .col_expr(order::Column::UpdatedAt, Expr::value(chrono::Utc::now()))
+        .filter(order::Column::OrderNo.eq(order_no))
+        .filter(order::Column::Status.eq("pending"))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(result.rows_affected == 1)
+}
+
 pub async fn update_order_trade_no(
     db: &DatabaseConnection,
     order_no: &str,

@@ -71,6 +71,7 @@ const routes = [
         path: 'aff',
         name: 'AffManage',
         component: () => import('../views/admin/AffManage.vue'),
+        meta: { requiresSuperAdmin: true },
       },
       {
         path: 'withdrawals',

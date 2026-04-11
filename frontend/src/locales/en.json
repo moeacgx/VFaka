@@ -234,6 +234,8 @@
     "code_placeholder": "Enter your AFF code",
     "email_placeholder": "Your email address",
     "enter_code_required": "Please enter your AFF code",
+    "enter_password_required": "Please enter withdrawal password",
+    "query_password_placeholder": "Withdrawal password",
     "password_placeholder": "Set withdrawal password",
     "your_code": "Your AFF Code",
     "your_link": "Your Referral Link",

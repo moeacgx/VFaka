@@ -37,6 +37,7 @@ interface AffLog {
 
 // Section 1: Balance query
 const queryCode = ref('')
+const queryPassword = ref('')
 const affInfo = ref<AffInfo | null>(null)
 const queryLoading = ref(false)
 const queryError = ref('')
@@ -102,6 +103,10 @@ async function queryBalance() {
     queryError.value = t('aff.enter_code_required')
     return
   }
+  if (!queryPassword.value) {
+    queryError.value = t('aff.enter_password_required')
+    return
+  }
   queryLoading.value = true
   queryError.value = ''
   notRegistered.value = false
@@ -109,7 +114,7 @@ async function queryBalance() {
 
   try {
     const [res, tiersRes] = await Promise.all([
-      publicApi.queryAff(queryCode.value.trim()),
+      publicApi.queryAff(queryCode.value.trim(), queryPassword.value),
       publicApi.getAffTiers(),
     ])
     affInfo.value = res.data
@@ -132,7 +137,7 @@ async function loadLogs() {
   if (!affInfo.value) return
   logsLoading.value = true
   try {
-    const res = await publicApi.getAffLogs(affInfo.value.aff_code)
+    const res = await publicApi.getAffLogs(affInfo.value.aff_code, queryPassword.value)
     affLogs.value = res.data
   } catch {
     // silent
@@ -230,22 +235,31 @@ async function submitWithdraw() {
     <!-- Section 1: Balance Query -->
     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm dark:shadow-none p-6">
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">{{ $t('aff.title') }}</h2>
-      <div class="flex gap-3">
-        <input
-          v-model="queryCode"
-          type="text"
-          :placeholder="$t('aff.code_placeholder')"
-          @keyup.enter="queryBalance"
-          class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-        />
-        <button
-          @click="queryBalance"
-          :disabled="queryLoading"
-          class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-        >
-          <div v-if="queryLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-          {{ $t('order.query_button') }}
-        </button>
+      <div class="flex flex-col gap-3">
+        <div class="flex gap-3">
+          <input
+            v-model="queryCode"
+            type="text"
+            :placeholder="$t('aff.code_placeholder')"
+            @keyup.enter="queryBalance"
+            class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          />
+          <input
+            v-model="queryPassword"
+            type="password"
+            :placeholder="$t('aff.query_password_placeholder')"
+            @keyup.enter="queryBalance"
+            class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          />
+          <button
+            @click="queryBalance"
+            :disabled="queryLoading"
+            class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+          >
+            <div v-if="queryLoading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            {{ $t('order.query_button') }}
+          </button>
+        </div>
       </div>
       <p v-if="queryError" class="text-red-500 text-sm mt-3">{{ queryError }}</p>
 

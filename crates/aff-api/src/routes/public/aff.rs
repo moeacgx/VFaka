@@ -9,6 +9,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub struct AffCodeQuery {
     pub code: String,
+    pub password: Option<String>,
 }
 
 fn is_valid_email(email: &str) -> bool {
@@ -56,7 +57,12 @@ pub async fn query(
     if query.code.is_empty() {
         return Err(AppError::BadRequest("AFF code is required".into()));
     }
+    let password = query.password.as_deref().unwrap_or("");
+    if password.is_empty() {
+        return Err(AppError::BadRequest("Password is required".into()));
+    }
 
+    aff_service::verify_user_password(db.get_ref(), &query.code, password).await?;
     let resp = aff_service::query_by_code(db.get_ref(), &query.code).await?;
 
     Ok(HttpResponse::Ok().json(resp))
@@ -112,7 +118,12 @@ pub async fn logs(
     if query.code.is_empty() {
         return Err(AppError::BadRequest("AFF code is required".into()));
     }
+    let password = query.password.as_deref().unwrap_or("");
+    if password.is_empty() {
+        return Err(AppError::BadRequest("Password is required".into()));
+    }
 
+    aff_service::verify_user_password(db.get_ref(), &query.code, password).await?;
     let logs = aff_service::get_logs_by_code(db.get_ref(), &query.code).await?;
 
     Ok(HttpResponse::Ok().json(logs))

@@ -76,7 +76,7 @@ onMounted(async () => {
               <tr v-for="order in recentOrders" :key="order.id" class="hover:bg-gray-50 dark:hover:bg-gray-700">
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-300 font-mono text-xs">{{ order.order_no }}</td>
                 <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ order.product_name }}</td>
-                <td class="px-4 py-3 text-gray-800 dark:text-gray-100">¥{{ order.amount?.toFixed(2) }}</td>
+                <td class="px-4 py-3 text-gray-800 dark:text-gray-100">¥{{ order.total_amount?.toFixed(2) }}</td>
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ order.email }}</td>
                 <td class="px-4 py-3">
                   <span

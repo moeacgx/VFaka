@@ -141,6 +141,25 @@ pub async fn get_user_by_code(
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
+/// Verify an AFF user's withdrawal password. Returns the user on success.
+pub async fn verify_user_password(
+    db: &DatabaseConnection,
+    aff_code: &str,
+    password: &str,
+) -> AppResult<aff_user::Model> {
+    let user = get_user_by_code(db, aff_code)
+        .await?
+        .ok_or_else(|| AppError::NotFound("AFF user not found".into()))?;
+    let hash = user.withdraw_password_hash.as_deref()
+        .ok_or_else(|| AppError::BadRequest("Withdraw password not set".into()))?;
+    let valid = bcrypt::verify(password, hash)
+        .map_err(|e| AppError::Internal(format!("Password verify failed: {}", e)))?;
+    if !valid {
+        return Err(AppError::Unauthorized("Invalid password".into()));
+    }
+    Ok(user)
+}
+
 /// Get the commission rate for a user based on their tier level.
 /// Falls back to the product-specific rate, then to the user's tier rate.
 async fn get_commission_rate(
@@ -240,7 +259,7 @@ pub async fn process_commission(
         return Ok(());
     }
 
-    let commission = order.total_amount * rate;
+    let commission = crate::round_money(order.total_amount * rate);
     if commission <= 0.0 {
         return Ok(());
     }
@@ -260,20 +279,37 @@ pub async fn process_commission(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    // Update aff_user balance + check tier upgrade
-    let new_balance = aff_user.balance + commission;
-    let new_earned = aff_user.total_earned + commission;
+    // Update aff_user balance + total_earned atomically
+    use sea_orm::sea_query::Expr;
     let aff_email = aff_user.email.clone();
+    let aff_user_id = aff_user.id;
 
-    let new_level = maybe_upgrade_tier(db, &aff_user, new_earned).await?;
+    aff_user::Entity::update_many()
+        .col_expr(
+            aff_user::Column::Balance,
+            Expr::col(aff_user::Column::Balance).add(commission),
+        )
+        .col_expr(
+            aff_user::Column::TotalEarned,
+            Expr::col(aff_user::Column::TotalEarned).add(commission),
+        )
+        .filter(aff_user::Column::Id.eq(aff_user_id))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let mut user_model: aff_user::ActiveModel = aff_user.into();
-    user_model.balance = Set(new_balance);
-    user_model.total_earned = Set(new_earned);
-    if let Some(level) = new_level {
-        user_model.level = Set(level);
+    // Re-read user to check tier upgrade with actual total_earned
+    if let Some(updated_user) = aff_user::Entity::find_by_id(aff_user_id)
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+    {
+        if let Some(new_level) = maybe_upgrade_tier(db, &updated_user, updated_user.total_earned).await? {
+            let mut user_model: aff_user::ActiveModel = updated_user.into();
+            user_model.level = Set(new_level);
+            user_model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
+        }
     }
-    user_model.update(db).await.map_err(|e| AppError::Internal(e.to_string()))?;
 
     // Update order aff_commission
     let o = order::Entity::find_by_id(order.id)

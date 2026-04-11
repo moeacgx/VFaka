@@ -175,24 +175,34 @@ async fn do_delivery(
             }
         }
 
-        // Update sales_count
-        let new_sales = product_model.sales_count + order.quantity;
+        // Update sales_count atomically
         use sea_orm::*;
-        let mut prod_am: aff_entity::entities::product::ActiveModel = product_model.into();
-        prod_am.sales_count = Set(new_sales);
-        prod_am.updated_at = Set(chrono::Utc::now());
-        prod_am
-            .update(db)
+        use sea_orm::sea_query::Expr;
+        aff_entity::entities::product::Entity::update_many()
+            .col_expr(
+                aff_entity::entities::product::Column::SalesCount,
+                Expr::col(aff_entity::entities::product::Column::SalesCount).add(order.quantity),
+            )
+            .col_expr(
+                aff_entity::entities::product::Column::UpdatedAt,
+                Expr::value(chrono::Utc::now()),
+            )
+            .filter(aff_entity::entities::product::Column::Id.eq(order.product_id))
+            .exec(db)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        // Update variant sales_count if applicable
+        // Update variant sales_count atomically if applicable
         if let Some(vid) = order.variant_id {
-            if let Ok(Some(variant)) = aff_entity::entities::product_variant::Entity::find_by_id(vid).one(db).await {
-                let mut var_am: aff_entity::entities::product_variant::ActiveModel = variant.into();
-                var_am.sales_count = Set(var_am.sales_count.unwrap() + order.quantity);
-                let _ = var_am.update(db).await;
-            }
+            aff_entity::entities::product_variant::Entity::update_many()
+                .col_expr(
+                    aff_entity::entities::product_variant::Column::SalesCount,
+                    Expr::col(aff_entity::entities::product_variant::Column::SalesCount).add(order.quantity),
+                )
+                .filter(aff_entity::entities::product_variant::Column::Id.eq(vid))
+                .exec(db)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
         }
     }
 
@@ -310,6 +320,9 @@ pub async fn epay_notify(
             .await?;
     }
 
+    // Transition pending → paid (CAS, idempotent if already paid)
+    let _ = order_service::mark_order_paid(db.get_ref(), &cb_data.order_no).await;
+
     // Process paid order (claim → deliver → commission)
     // CAS claim inside handles concurrency; returns Ok if already claimed
     if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no, config.get_ref()).await {
@@ -399,6 +412,9 @@ pub async fn tokenpay_notify(
         order_service::update_order_trade_no(db.get_ref(), &cb_data.order_no, &cb_data.trade_no)
             .await?;
     }
+
+    // Transition pending → paid (CAS, idempotent if already paid)
+    let _ = order_service::mark_order_paid(db.get_ref(), &cb_data.order_no).await;
 
     // Process paid order (claim → deliver → commission)
     if let Err(e) = process_paid_order(db.get_ref(), &cb_data.order_no, config.get_ref()).await {

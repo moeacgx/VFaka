@@ -1,4 +1,4 @@
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch } from 'vue'
 
 type ThemeMode = 'light' | 'dark' | 'system'
 
@@ -23,31 +23,23 @@ function applyTheme() {
   }
 }
 
-let mediaQueryHandler: (() => void) | null = null
+// Module-level initialization (runs once on import)
+(() => {
+  const saved = localStorage.getItem('theme_preference') as ThemeMode | null
+  if (saved && ['light', 'dark', 'system'].includes(saved)) {
+    themeMode.value = saved
+  }
+  applyTheme()
+
+  const mediaQueryHandler = () => {
+    if (themeMode.value === 'system') {
+      applyTheme()
+    }
+  }
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', mediaQueryHandler)
+})()
 
 export function useTheme() {
-  onMounted(() => {
-    const saved = localStorage.getItem('theme_preference') as ThemeMode | null
-    if (saved && ['light', 'dark', 'system'].includes(saved)) {
-      themeMode.value = saved
-    }
-    applyTheme()
-
-    mediaQueryHandler = () => {
-      if (themeMode.value === 'system') {
-        applyTheme()
-      }
-    }
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', mediaQueryHandler)
-  })
-
-  onUnmounted(() => {
-    if (mediaQueryHandler) {
-      window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', mediaQueryHandler)
-      mediaQueryHandler = null
-    }
-  })
-
   watch(themeMode, (val) => {
     localStorage.setItem('theme_preference', val)
     applyTheme()

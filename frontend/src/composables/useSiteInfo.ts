@@ -28,7 +28,10 @@ async function fetchSiteInfo() {
   fetchPromise = (async () => {
     try {
       const res = await publicApi.getSiteInfo()
-      siteInfo.value = res.data
+      const data = res.data
+      if (data && typeof data === 'object') {
+        siteInfo.value = { ...siteInfo.value, ...data }
+      }
       loaded.value = true
 
       if (siteInfo.value.site_name) {

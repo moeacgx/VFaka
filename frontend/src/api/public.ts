@@ -21,9 +21,9 @@ export const publicApi = {
 
   // AFF
   registerAff: (data: any) => request.post('/v1/aff/register', data),
-  queryAff: (code: string) => request.get('/v1/aff/query', { params: { code } }),
+  queryAff: (code: string, password: string) => request.get('/v1/aff/query', { params: { code, password } }),
   submitWithdrawal: (data: any) => request.post('/v1/aff/withdraw', data),
-  getAffLogs: (code: string) => request.get('/v1/aff/logs', { params: { code } }),
+  getAffLogs: (code: string, password: string) => request.get('/v1/aff/logs', { params: { code, password } }),
   getAffTiers: () => request.get('/v1/aff/tiers'),
 
   // Coupons

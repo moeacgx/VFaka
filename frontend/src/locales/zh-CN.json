@@ -234,6 +234,8 @@
     "code_placeholder": "请输入您的推广码",
     "email_placeholder": "您的邮箱地址",
     "enter_code_required": "请输入推广码",
+    "enter_password_required": "请输入提现密码",
+    "query_password_placeholder": "提现密码",
     "password_placeholder": "设置提现密码",
     "your_code": "您的推广码",
     "your_link": "您的推广链接",
