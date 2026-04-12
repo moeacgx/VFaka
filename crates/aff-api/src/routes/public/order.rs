@@ -346,7 +346,34 @@ pub async fn get_order_status(
     Err(AppError::BadRequest("Token or email required".into()))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct EmailQuery {
+    pub email: String,
+}
+
+pub async fn get_orders_by_email(
+    db: web::Data<DatabaseConnection>,
+    query: web::Query<EmailQuery>,
+) -> AppResult<HttpResponse> {
+    let email = query.email.trim().to_lowercase();
+    if email.is_empty() {
+        return Err(AppError::BadRequest("Email is required".into()));
+    }
+
+    let orders = order_service::list_orders_by_email(db.get_ref(), &email).await?;
+    let responses: Vec<_> = orders
+        .into_iter()
+        .map(|o| {
+            let hide_cards = o.status != "delivered";
+            order_service::to_order_response(o, hide_cards)
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(responses))
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.route("/orders", web::post().to(create_order))
+        .route("/orders/by-email", web::get().to(get_orders_by_email))
         .route("/orders/{order_no}", web::get().to(get_order_status));
 }

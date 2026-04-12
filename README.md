@@ -5,7 +5,7 @@
 DEMO: https://shop.viloze.com
 
 感谢:
-**富通支付**: https://t.me/Futoonmainbot?start=016ff1eb
+**富通支付**: [@Futoon](https://t.me/Futoonmainbot?start=016ff1eb)
 
 ## 功能特性
 

@@ -28,10 +28,13 @@ interface Order {
 
 const route = useRoute()
 
+const queryMode = ref<'order' | 'email'>('order')
 const orderNo = ref('')
 const queryToken = ref('')
+const emailQuery = ref('')
 const orderNoInput = ref<HTMLInputElement | null>(null)
 const tokenInput = ref<HTMLInputElement | null>(null)
+const emailInput = ref<HTMLInputElement | null>(null)
 const orders = ref<Order[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -59,7 +62,20 @@ function toggleExpand(orderNo: string) {
   expandedOrder.value = expandedOrder.value === orderNo ? null : orderNo
 }
 
+function switchMode(mode: 'order' | 'email') {
+  queryMode.value = mode
+  error.value = ''
+  nextTick(() => {
+    if (mode === 'email') emailInput.value?.focus()
+    else orderNoInput.value?.focus()
+  })
+}
+
 async function queryOrder() {
+  if (queryMode.value === 'email') {
+    return queryByEmail()
+  }
+
   if (!orderNo.value.trim()) {
     error.value = t('order.enter_order_no_required')
     return
@@ -83,17 +99,35 @@ async function queryOrder() {
   }
 }
 
+async function queryByEmail() {
+  if (!emailQuery.value.trim()) {
+    error.value = t('order.enter_email_required')
+    return
+  }
+  loading.value = true
+  error.value = ''
+  searched.value = true
+
+  try {
+    const res = await publicApi.getOrdersByEmail(emailQuery.value.trim())
+    orders.value = res.data || []
+  } catch (e: any) {
+    error.value = e.response?.data?.message || e.response?.data?.error || t('common.query_failed')
+    orders.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
   const no = route.query.no as string | undefined
   const token = route.query.token as string | undefined
   if (no && token) {
-    // Auto-query with token (e.g., from payment return)
     orderNo.value = no
     queryToken.value = token
     autoQueried.value = true
     queryOrder()
   } else if (no) {
-    // Pre-fill order number, focus token input
     orderNo.value = no
     nextTick(() => tokenInput.value?.focus())
   } else {
@@ -110,7 +144,21 @@ onMounted(() => {
       <div v-if="autoQueried && orders.length > 0" class="text-sm text-green-600 dark:text-green-400 mb-3">
         {{ $t('order.auto_query_success') }}
       </div>
-      <div class="space-y-3">
+
+      <!-- Mode tabs -->
+      <div class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
+        <button
+          @click="switchMode('order')"
+          :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', queryMode === 'order' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200']"
+        >{{ $t('order.query_by_order') }}</button>
+        <button
+          @click="switchMode('email')"
+          :class="['px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', queryMode === 'email' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200']"
+        >{{ $t('order.query_by_email') }}</button>
+      </div>
+
+      <!-- Order No + Token mode -->
+      <div v-if="queryMode === 'order'" class="space-y-3">
         <input
           ref="orderNoInput"
           v-model="orderNo"
@@ -138,6 +186,29 @@ onMounted(() => {
           </button>
         </div>
       </div>
+
+      <!-- Email mode -->
+      <div v-else class="space-y-3">
+        <div class="flex gap-3">
+          <input
+            ref="emailInput"
+            v-model="emailQuery"
+            type="email"
+            :placeholder="$t('order.enter_email')"
+            @keyup.enter="queryByEmail"
+            class="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+          />
+          <button
+            @click="queryByEmail"
+            :disabled="loading"
+            class="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+          >
+            <div v-if="loading" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            {{ $t('order.query_button') }}
+          </button>
+        </div>
+      </div>
+
       <p v-if="error" class="text-red-500 text-sm mt-3">{{ error }}</p>
     </div>
 
