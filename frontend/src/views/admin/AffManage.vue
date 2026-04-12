@@ -102,6 +102,16 @@ function tierName(level: number) {
   return tier ? tier.name : `Level ${level}`
 }
 
+async function deleteUser(user: any) {
+  if (!confirm(`${t('common.confirm_delete')} ${user.email} (${user.aff_code})?`)) return
+  try {
+    await adminApi.deleteAffUser(user.id)
+    await load()
+  } catch (e: any) {
+    alert(e.response?.data?.error || t('common.operation_failed'))
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -185,6 +195,7 @@ onMounted(load)
                 <th class="px-4 py-3 font-medium">{{ $t('aff.total_earned') }}</th>
                 <th class="px-4 py-3 font-medium">{{ $t('aff.total_withdrawn') }}</th>
                 <th class="px-4 py-3 font-medium">{{ $t('common.created_at') }}</th>
+                <th class="px-4 py-3 font-medium">{{ $t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -200,9 +211,12 @@ onMounted(load)
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-300">¥{{ (user.total_earned ?? 0).toFixed(2) }}</td>
                 <td class="px-4 py-3 text-gray-600 dark:text-gray-300">¥{{ (user.total_withdrawn ?? 0).toFixed(2) }}</td>
                 <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">{{ user.created_at?.replace('T', ' ').slice(0, 19) }}</td>
+                <td class="px-4 py-3">
+                  <button @click="deleteUser(user)" class="text-red-500 hover:text-red-700 text-xs">{{ $t('common.delete') }}</button>
+                </td>
               </tr>
               <tr v-if="affUsers.length === 0">
-                <td colspan="7" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
+                <td colspan="8" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ $t('common.no_data') }}</td>
               </tr>
             </tbody>
           </table>

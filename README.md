@@ -2,6 +2,11 @@
 
 自动发卡商城系统 — Rust (Actix-web) + Vue 3 + TailwindCSS
 
+DEMO: https://shop.viloze.com
+
+感谢:
+**富通支付**: https://t.me/Futoonmainbot?start=016ff1eb
+
 ## 功能特性
 
 - **自动发卡**: 用户购买后自动发放卡密，邮箱查询订单

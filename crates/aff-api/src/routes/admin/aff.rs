@@ -9,6 +9,7 @@ use aff_entity::dto::{CreateAffTierDto, UpdateAffTierDto};
 pub fn scope() -> actix_web::Scope {
     web::scope("/aff")
         .route("/users", web::get().to(list_users))
+        .route("/users/{id}", web::delete().to(delete_user))
         .route("/settings", web::put().to(update_settings))
         .route("/tiers", web::get().to(list_tiers))
         .route("/tiers", web::post().to(create_tier))
@@ -19,6 +20,15 @@ pub fn scope() -> actix_web::Scope {
 async fn list_users(db: web::Data<DatabaseConnection>) -> AppResult<HttpResponse> {
     let users = aff_service::list_aff_users(&db).await?;
     Ok(HttpResponse::Ok().json(users))
+}
+
+async fn delete_user(
+    db: web::Data<DatabaseConnection>,
+    path: web::Path<i32>,
+) -> AppResult<HttpResponse> {
+    let user_id = path.into_inner();
+    aff_service::delete_aff_user(&db, user_id).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({"success": true})))
 }
 
 async fn update_settings(

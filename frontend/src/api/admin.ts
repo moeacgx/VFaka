@@ -37,6 +37,7 @@ export const adminApi = {
 
   // AFF
   getAffUsers: (params?: any) => request.get('/admin/aff/users', { params }),
+  deleteAffUser: (id: number) => request.delete(`/admin/aff/users/${id}`),
   updateAffSettings: (data: any) => request.put('/admin/aff/settings', data),
   getAffTiers: () => request.get('/admin/aff/tiers'),
   createAffTier: (data: any) => request.post('/admin/aff/tiers', data),

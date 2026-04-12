@@ -13,6 +13,25 @@ pub async fn list_aff_users(db: &DatabaseConnection) -> AppResult<Vec<aff_user::
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
+pub async fn delete_aff_user(db: &DatabaseConnection, user_id: i32) -> AppResult<()> {
+    // Delete related aff_logs first
+    aff_log::Entity::delete_many()
+        .filter(aff_log::Column::AffUserId.eq(user_id))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let res = aff_user::Entity::delete_by_id(user_id)
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    if res.rows_affected == 0 {
+        return Err(AppError::NotFound("AFF user not found".into()));
+    }
+    Ok(())
+}
+
 pub async fn register(
     db: &DatabaseConnection,
     dto: AffRegisterDto,
