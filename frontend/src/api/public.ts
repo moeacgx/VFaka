@@ -18,8 +18,8 @@ export const publicApi = {
   createOrder: (data: any) => request.post('/v1/orders', data),
   getOrder: (orderNo: string, params: { token?: string; email?: string }) =>
     request.get(`/v1/orders/${orderNo}`, { params }),
-  getOrdersByEmail: (email: string) =>
-    request.get('/v1/orders/by-email', { params: { email } }),
+  getOrdersByEmail: (email: string, password: string) =>
+    request.get('/v1/orders/by-email', { params: { email, password } }),
 
   // AFF
   registerAff: (data: any) => request.post('/v1/aff/register', data),

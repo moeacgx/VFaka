@@ -358,6 +358,7 @@ pub async fn get_order_status(
 #[derive(Debug, Deserialize)]
 pub struct EmailQuery {
     pub email: String,
+    pub password: String,
 }
 
 pub async fn get_orders_by_email(
@@ -365,11 +366,21 @@ pub async fn get_orders_by_email(
     query: web::Query<EmailQuery>,
 ) -> AppResult<HttpResponse> {
     let email = query.email.trim().to_lowercase();
-    if email.is_empty() {
-        return Err(AppError::BadRequest("Email is required".into()));
+    let password = query.password.trim().to_string();
+    if email.is_empty() || password.is_empty() {
+        return Err(AppError::BadRequest("Email and password are required".into()));
     }
 
     let orders = order_service::list_orders_by_email(db.get_ref(), &email).await?;
+
+    // Verify: password must match any order's query_token for this email
+    let authorized = orders.iter().any(|o| {
+        o.query_token.as_deref() == Some(password.as_str())
+    });
+    if !authorized {
+        return Err(AppError::NotFound("No orders found or incorrect password".into()));
+    }
+
     let responses: Vec<_> = orders
         .into_iter()
         .map(|o| {
