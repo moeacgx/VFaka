@@ -1,8 +1,9 @@
 use sea_orm::*;
+use sea_orm::prelude::Expr;
 
 use aff_common::error::{AppError, AppResult};
 use aff_entity::dto::{CreateProductDto, ProductResponse, UpdateProductDto, VariantResponse};
-use aff_entity::entities::{card, category, product, product_variant};
+use aff_entity::entities::{card, category, order, product, product_variant};
 
 pub async fn list_products(
     db: &DatabaseConnection,
@@ -195,6 +196,23 @@ pub async fn delete_product(db: &DatabaseConnection, id: i32) -> AppResult<()> {
         .map_err(|e| AppError::Internal(e.to_string()))?
         .ok_or_else(|| AppError::NotFound(format!("Product {} not found", id)))?;
 
+    // Cancel any pending orders referencing this product
+    order::Entity::update_many()
+        .col_expr(order::Column::Status, Expr::value("cancelled".to_string()))
+        .filter(order::Column::ProductId.eq(id))
+        .filter(order::Column::Status.eq("pending"))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // Disable FK checks so we can delete a product that has historical orders
+    let backend = db.get_database_backend();
+    if backend == DatabaseBackend::Sqlite {
+        db.execute(Statement::from_string(backend, "PRAGMA foreign_keys = OFF".to_owned()))
+            .await
+            .ok();
+    }
+
     // Delete all cards associated with this product
     card::Entity::delete_many()
         .filter(card::Column::ProductId.eq(id))
@@ -210,15 +228,40 @@ pub async fn delete_product(db: &DatabaseConnection, id: i32) -> AppResult<()> {
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     let model: product::ActiveModel = existing.into();
-    model
+    let result = model
         .delete(db)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| AppError::Internal(e.to_string()));
 
+    // Re-enable FK checks
+    if backend == DatabaseBackend::Sqlite {
+        db.execute(Statement::from_string(backend, "PRAGMA foreign_keys = ON".to_owned()))
+            .await
+            .ok();
+    }
+
+    result?;
     Ok(())
 }
 
 pub async fn batch_delete_products(db: &DatabaseConnection, ids: Vec<i32>) -> AppResult<u64> {
+    // Cancel any pending orders referencing these products
+    order::Entity::update_many()
+        .col_expr(order::Column::Status, Expr::value("cancelled".to_string()))
+        .filter(order::Column::ProductId.is_in(ids.clone()))
+        .filter(order::Column::Status.eq("pending"))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // Disable FK checks so we can delete products that have historical orders
+    let backend = db.get_database_backend();
+    if backend == DatabaseBackend::Sqlite {
+        db.execute(Statement::from_string(backend, "PRAGMA foreign_keys = OFF".to_owned()))
+            .await
+            .ok();
+    }
+
     // Delete all cards for these products
     card::Entity::delete_many()
         .filter(card::Column::ProductId.is_in(ids.clone()))
@@ -237,9 +280,16 @@ pub async fn batch_delete_products(db: &DatabaseConnection, ids: Vec<i32>) -> Ap
         .filter(product::Column::Id.is_in(ids))
         .exec(db)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| AppError::Internal(e.to_string()));
 
-    Ok(result.rows_affected)
+    // Re-enable FK checks
+    if backend == DatabaseBackend::Sqlite {
+        db.execute(Statement::from_string(backend, "PRAGMA foreign_keys = ON".to_owned()))
+            .await
+            .ok();
+    }
+
+    Ok(result?.rows_affected)
 }
 
 pub async fn duplicate_product(db: &DatabaseConnection, id: i32) -> AppResult<product::Model> {
