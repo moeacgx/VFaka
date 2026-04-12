@@ -2,8 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
+import { useConfirm } from '../../composables/useConfirm'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const loading = ref(true)
 const savingSettings = ref(false)
 const affUsers = ref<any[]>([])
@@ -88,7 +90,7 @@ async function saveTier() {
 }
 
 async function deleteTier(level: number) {
-  if (!confirm(t('common.confirm_delete'))) return
+  if (!await confirm(t('common.confirm_delete'))) return
   try {
     await adminApi.deleteAffTier(level)
     await load()
@@ -103,7 +105,7 @@ function tierName(level: number) {
 }
 
 async function deleteUser(user: any) {
-  if (!confirm(`${t('common.confirm_delete')} ${user.email} (${user.aff_code})?`)) return
+  if (!await confirm(`${t('common.confirm_delete')} ${user.email} (${user.aff_code})?`)) return
   try {
     await adminApi.deleteAffUser(user.id)
     await load()

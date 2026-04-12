@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
+import { useConfirm } from '../../composables/useConfirm'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const loading = ref(true)
 const products = ref<any[]>([])
 const categories = ref<any[]>([])
@@ -132,7 +134,7 @@ async function save() {
 }
 
 async function remove(id: number) {
-  if (!confirm(t('common.confirm_delete'))) return
+  if (!await confirm(t('common.confirm_delete'))) return
   try {
     await adminApi.deleteProduct(id)
     selectedIds.value = selectedIds.value.filter(sid => sid !== id)
@@ -153,7 +155,7 @@ async function duplicate(id: number) {
 
 async function batchDelete() {
   if (selectedIds.value.length === 0) return
-  if (!confirm(t('common.confirm_delete') + ` (${selectedIds.value.length})`)) return
+  if (!await confirm(t('common.confirm_delete') + ` (${selectedIds.value.length})`)) return
   try {
     await adminApi.batchDeleteProducts(selectedIds.value)
     await load()
@@ -251,7 +253,7 @@ async function saveVariant() {
 }
 
 async function removeVariant(id: number) {
-  if (!confirm(t('common.confirm_delete'))) return
+  if (!await confirm(t('common.confirm_delete'))) return
   if (!showVariants.value) return
   try {
     await adminApi.deleteVariant(id)

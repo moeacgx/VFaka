@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
+import { useConfirm } from '../../composables/useConfirm'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const loading = ref(true)
 const cards = ref<any[]>([])
 const products = ref<any[]>([])
@@ -115,7 +117,7 @@ async function submitImport() {
 }
 
 async function remove(id: number) {
-  if (!confirm(t('common.confirm_delete'))) return
+  if (!await confirm(t('common.confirm_delete'))) return
   try {
     await adminApi.deleteCard(id)
     await load()

@@ -3,8 +3,10 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
 import { useAdminStore } from '../../stores/admin'
+import { useConfirm } from '../../composables/useConfirm'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const admin = useAdminStore()
 const loading = ref(true)
 const admins = ref<any[]>([])
@@ -47,7 +49,7 @@ async function remove(a: any) {
     alert(t('common.current_user'))
     return
   }
-  if (!confirm(t('common.confirm_delete'))) return
+  if (!await confirm(t('common.confirm_delete'))) return
   try {
     await adminApi.deleteAdmin(a.id)
     await load()

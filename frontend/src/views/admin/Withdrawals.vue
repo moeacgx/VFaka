@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
+import { useConfirm } from '../../composables/useConfirm'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const loading = ref(true)
 const withdrawals = ref<any[]>([])
 const filterStatus = ref('')
@@ -35,7 +37,7 @@ async function load() {
 }
 
 async function approve(id: number) {
-  if (!confirm(t('common.confirm') + '?')) return
+  if (!await confirm(t('common.confirm') + '?')) return
   try {
     await adminApi.approveWithdrawal(id)
     await load()

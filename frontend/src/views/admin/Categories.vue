@@ -2,8 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminApi } from '../../api/admin'
+import { useConfirm } from '../../composables/useConfirm'
 
 const { t } = useI18n()
+const { confirm } = useConfirm()
 const loading = ref(true)
 const categories = ref<any[]>([])
 const showForm = ref(false)
@@ -58,7 +60,7 @@ async function save() {
 }
 
 async function remove(id: number) {
-  if (!confirm(t('common.confirm_delete'))) return
+  if (!await confirm(t('common.confirm_delete'))) return
   try {
     await adminApi.deleteCategory(id)
     await load()
@@ -69,7 +71,7 @@ async function remove(id: number) {
 
 async function batchDelete() {
   if (selectedIds.value.length === 0) return
-  if (!confirm(t('common.confirm_delete') + ` (${selectedIds.value.length})`)) return
+  if (!await confirm(t('common.confirm_delete') + ` (${selectedIds.value.length})`)) return
   try {
     await adminApi.batchDeleteCategories(selectedIds.value)
     await load()

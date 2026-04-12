@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useTheme } from './composables/useTheme'
 import { useSiteInfo } from './composables/useSiteInfo'
 import { publicApi } from './api/public'
+import ConfirmModal from './components/common/ConfirmModal.vue'
 
 const route = useRoute()
 const { locale } = useI18n()
@@ -139,5 +140,6 @@ const themeIcon = computed(() => {
     <div v-if="langOpen" class="fixed inset-0 z-40" @click="langOpen = false" />
 
     <router-view />
+    <ConfirmModal />
   </div>
 </template>
