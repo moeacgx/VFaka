@@ -25,6 +25,7 @@ pub fn scope() -> actix_web::Scope {
         .route("/{id}", web::put().to(update))
         .route("/{id}", web::delete().to(delete))
         .route("/{id}/restock", web::post().to(restock))
+        .route("/{id}/duplicate", web::post().to(duplicate))
 }
 
 async fn list(
@@ -89,4 +90,12 @@ async fn restock(
         "success": true,
         "imported": count,
     })))
+}
+
+async fn duplicate(
+    db: web::Data<DatabaseConnection>,
+    path: web::Path<i32>,
+) -> AppResult<HttpResponse> {
+    let product = product_service::duplicate_product(&db, path.into_inner()).await?;
+    Ok(HttpResponse::Created().json(product))
 }

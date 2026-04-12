@@ -128,6 +128,7 @@
     "select_payment": "Select payment method",
     "product_list": "Product List",
     "restock": "Restock",
+    "duplicate": "Duplicate",
     "restock_title": "Restock - Batch Import Cards",
     "usdt_polygon": "USDT-Polygon",
     "webhook": "Webhook",

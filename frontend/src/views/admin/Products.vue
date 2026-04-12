@@ -135,6 +135,16 @@ async function remove(id: number) {
   if (!confirm(t('common.confirm_delete'))) return
   try {
     await adminApi.deleteProduct(id)
+    selectedIds.value = selectedIds.value.filter(sid => sid !== id)
+    await load()
+  } catch (e: any) {
+    alert(e.response?.data?.error || t('common.operation_failed'))
+  }
+}
+
+async function duplicate(id: number) {
+  try {
+    await adminApi.duplicateProduct(id)
     await load()
   } catch (e: any) {
     alert(e.response?.data?.error || t('common.operation_failed'))
@@ -440,6 +450,7 @@ onMounted(load)
             </td>
             <td class="px-4 py-3 space-x-2">
               <button @click="toggleVariants(p.id)" class="text-purple-600 hover:text-purple-800 text-xs">{{ $t('product.variants') }}</button>
+              <button @click="duplicate(p.id)" class="text-green-600 hover:text-green-800 text-xs">{{ $t('product.duplicate') }}</button>
               <button @click="openEdit(p)" class="text-blue-600 hover:text-blue-800 text-xs">{{ $t('common.edit') }}</button>
               <button @click="remove(p.id)" class="text-red-600 hover:text-red-800 text-xs">{{ $t('common.delete') }}</button>
             </td>

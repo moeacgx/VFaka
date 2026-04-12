@@ -20,6 +20,7 @@ export const adminApi = {
   deleteProduct: (id: number) => request.delete(`/admin/products/${id}`),
   batchDeleteProducts: (ids: number[]) => request.post('/admin/products/batch-delete', { ids }),
   restockProduct: (id: number, data: any) => request.post(`/admin/products/${id}/restock`, data),
+  duplicateProduct: (id: number) => request.post(`/admin/products/${id}/duplicate`),
 
   // Cards
   getCards: (params?: any) => request.get('/admin/cards', { params }),

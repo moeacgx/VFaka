@@ -242,6 +242,79 @@ pub async fn batch_delete_products(db: &DatabaseConnection, ids: Vec<i32>) -> Ap
     Ok(result.rows_affected)
 }
 
+pub async fn duplicate_product(db: &DatabaseConnection, id: i32) -> AppResult<product::Model> {
+    // 1. Fetch original product
+    let original = product::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound(format!("Product {} not found", id)))?;
+
+    // 2. Fetch variants
+    let variants = product_variant::Entity::find()
+        .filter(product_variant::Column::ProductId.eq(id))
+        .all(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // 3. Create new product (copy info, zero stock/sales)
+    let now = chrono::Utc::now();
+    let new_product = product::ActiveModel {
+        category_id: Set(original.category_id),
+        name: Set(format!("{} (Copy)", original.name)),
+        description: Set(original.description.clone()),
+        price: Set(original.price),
+        stock_count: Set(0),
+        sales_count: Set(0),
+        is_active: Set(false),
+        allow_alipay: Set(original.allow_alipay),
+        allow_wxpay: Set(original.allow_wxpay),
+        allow_qqpay: Set(original.allow_qqpay),
+        allow_usdt_trc20: Set(original.allow_usdt_trc20),
+        allow_trx: Set(original.allow_trx),
+        allow_usdt_erc20: Set(original.allow_usdt_erc20),
+        post_pay_action_type: Set(original.post_pay_action_type.clone()),
+        post_pay_action_value: Set(original.post_pay_action_value.clone()),
+        aff_commission_rate: Set(original.aff_commission_rate),
+        sort_order: Set(original.sort_order),
+        min_quantity: Set(original.min_quantity),
+        max_quantity: Set(original.max_quantity),
+        image_url: Set(original.image_url.clone()),
+        video_url: Set(original.video_url.clone()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+
+    let new_product = product::Entity::insert(new_product)
+        .exec_with_returning(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // 4. Clone variants (zero stock/sales)
+    for v in variants {
+        let new_variant = product_variant::ActiveModel {
+            product_id: Set(new_product.id),
+            name: Set(v.name),
+            price: Set(v.price),
+            description: Set(v.description),
+            sort_order: Set(v.sort_order),
+            is_active: Set(v.is_active),
+            stock_count: Set(0),
+            sales_count: Set(0),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        };
+        product_variant::Entity::insert(new_variant)
+            .exec(db)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+
+    Ok(new_product)
+}
+
 fn to_variant_response(v: product_variant::Model) -> VariantResponse {
     VariantResponse {
         id: v.id,

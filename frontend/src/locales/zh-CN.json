@@ -128,6 +128,7 @@
     "select_payment": "选择支付方式",
     "product_list": "商品列表",
     "restock": "补货",
+    "duplicate": "复制商品",
     "restock_title": "补货 - 批量导入卡密",
     "usdt_polygon": "USDT-Polygon",
     "webhook": "Webhook",
