@@ -82,6 +82,18 @@ pub async fn list_orders_by_email(
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
+pub async fn count_pending_orders_by_email(
+    db: &DatabaseConnection,
+    email: &str,
+) -> AppResult<u64> {
+    order::Entity::find()
+        .filter(order::Column::Email.eq(email))
+        .filter(order::Column::Status.eq("pending"))
+        .count(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
 pub async fn update_order_status(
     db: &DatabaseConnection,
     order_no: &str,

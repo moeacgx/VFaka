@@ -75,6 +75,14 @@ pub async fn create_order(
         return Err(AppError::BadRequest("Invalid email format".into()));
     }
 
+    // Anti-abuse: limit pending orders per email
+    let pending_count = order_service::count_pending_orders_by_email(db.get_ref(), &dto.email).await?;
+    if pending_count >= 5 {
+        return Err(AppError::BadRequest(
+            "Too many pending orders for this email. Please complete or wait for existing orders to expire.".into(),
+        ));
+    }
+
     // 1. Validate product
     let product = product_service::get_product(db.get_ref(), dto.product_id).await?;
     if !product.is_active {
