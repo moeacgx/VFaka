@@ -22,9 +22,12 @@ pub async fn create_order(
     discount_amount: f64,
     variant_id: Option<i32>,
     variant_name: Option<String>,
+    query_password: Option<String>,
 ) -> AppResult<order::Model> {
     let now = chrono::Utc::now();
-    let query_token = generate_query_token();
+    let query_token = query_password
+        .filter(|p| !p.trim().is_empty())
+        .unwrap_or_else(generate_query_token);
     let model = order::ActiveModel {
         order_no: Set(order_no),
         product_id: Set(product_id),

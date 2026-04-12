@@ -194,6 +194,7 @@ pub async fn create_order(
         discount_amount,
         variant_id,
         variant_name,
+        dto.query_password.clone(),
     )
     .await?;
 

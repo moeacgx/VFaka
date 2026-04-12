@@ -63,6 +63,7 @@ const showModal = ref(false)
 const selectedProduct = ref<Product | null>(null)
 const selectedVariantId = ref<number | null>(null)
 const orderEmail = ref('')
+const orderPassword = ref('')
 const orderQuantity = ref(1)
 const paymentMethod = ref('')
 const orderLoading = ref(false)
@@ -213,6 +214,7 @@ function openBuyModal(product: Product) {
   selectedProduct.value = product
   selectedVariantId.value = null
   orderEmail.value = ''
+  orderPassword.value = ''
   orderQuantity.value = product.min_quantity || 1
   paymentMethod.value = ''
   orderError.value = ''
@@ -264,6 +266,7 @@ async function submitOrder() {
       payment_method: paymentMethod.value,
       aff_code: affCode || undefined,
       coupon_code: couponCode.value.trim() || undefined,
+      query_password: orderPassword.value.trim() || undefined,
     })
     const data = res.data
     closeModal()
@@ -428,6 +431,20 @@ onMounted(async () => {
               v-model="orderEmail"
               type="email"
               :placeholder="$t('order.email_placeholder')"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            />
+          </div>
+
+          <!-- Query Password (optional) -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">
+              {{ $t('order.query_password') }}
+              <span class="text-gray-400 dark:text-gray-500 font-normal ml-1">{{ $t('order.query_password_hint') }}</span>
+            </label>
+            <input
+              v-model="orderPassword"
+              type="text"
+              :placeholder="$t('order.query_password_placeholder')"
               class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             />
           </div>

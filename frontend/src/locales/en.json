@@ -213,6 +213,9 @@
     "detail": "Order Detail",
     "create_order": "Create Order",
     "email_placeholder": "Enter your email",
+    "query_password": "Query Password",
+    "query_password_hint": "(optional, auto-generated if empty)",
+    "query_password_placeholder": "Set a password for order lookup",
     "query_token_hint": "Save this query token — you can use it to check your order later",
     "time": "Time"
   },

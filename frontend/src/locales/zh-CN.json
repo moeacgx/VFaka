@@ -213,6 +213,9 @@
     "detail": "订单详情",
     "create_order": "创建订单",
     "email_placeholder": "请输入邮箱",
+    "query_password": "查询密码",
+    "query_password_hint": "（可选，留空自动生成）",
+    "query_password_placeholder": "设置订单查询密码",
     "query_token_hint": "请妥善保存此查询令牌，稍后可用于查询订单",
     "time": "时间"
   },

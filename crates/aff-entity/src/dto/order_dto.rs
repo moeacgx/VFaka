@@ -10,6 +10,7 @@ pub struct CreateOrderDto {
     pub payment_method: String,
     pub aff_code: Option<String>,
     pub coupon_code: Option<String>,
+    pub query_password: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

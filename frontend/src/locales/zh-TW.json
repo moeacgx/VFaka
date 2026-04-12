@@ -213,6 +213,9 @@
     "detail": "訂單詳情",
     "create_order": "建立訂單",
     "email_placeholder": "請輸入信箱",
+    "query_password": "查詢密碼",
+    "query_password_hint": "（可選，留空自動生成）",
+    "query_password_placeholder": "設定訂單查詢密碼",
     "query_token_hint": "請妥善保存此查詢令牌，稍後可用於查詢訂單",
     "time": "時間"
   },
