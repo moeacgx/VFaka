@@ -15,6 +15,7 @@ pub fn scope() -> actix_web::Scope {
     web::scope("/payment-configs")
         .route("", web::get().to(list))
         .route("/{channel}", web::put().to(update))
+        .route("/{channel}/test", web::post().to(test_connection))
 }
 
 fn mask_sensitive_value(value: &str) -> String {
@@ -77,6 +78,45 @@ async fn update(
         payment_config_service::update_config(&db, &channel, &merged_json, dto.is_active)
             .await?;
     Ok(HttpResponse::Ok().json(config))
+}
+
+async fn test_connection(
+    db: web::Data<DatabaseConnection>,
+    path: web::Path<String>,
+) -> AppResult<HttpResponse> {
+    let channel = path.into_inner();
+    let configs = payment_config_service::list_configs(&db).await?;
+    let config = configs
+        .iter()
+        .find(|c| c.channel == channel)
+        .ok_or_else(|| AppError::NotFound(format!("Payment config not found: {}", channel)))?;
+
+    let config_obj: serde_json::Value = serde_json::from_str(&config.config_json)
+        .map_err(|e| AppError::BadRequest(format!("Invalid config: {}", e)))?;
+
+    let api_url = config_obj
+        .get("api_url")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("Missing api_url in config".into()))?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .unwrap_or_default();
+
+    match client.get(api_url).send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            Ok(HttpResponse::Ok().json(serde_json::json!({
+                "success": status.is_success() || status.is_redirection(),
+                "message": format!("HTTP {}", status),
+            })))
+        }
+        Err(e) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "success": false,
+            "message": format!("Connection failed: {}", e),
+        }))),
+    }
 }
 
 /// If the incoming config_json contains masked values (***), replace them

@@ -150,7 +150,10 @@
     "no_variants": "暫無選項卡",
     "select_variant": "請選擇選項",
     "select_variant_required": "請選擇一個選項",
-    "all_variants": "所有選項"
+    "all_variants": "所有選項",
+    "popup_blocked_hint": "瀏覽器攔截了支付視窗，請點擊下方按鈕手動開啟",
+    "open_payment": "開啟支付頁面",
+    "continue_to_order": "繼續查看訂單"
   },
   "category": {
     "name": "分類名稱",
@@ -220,7 +223,8 @@
     "query_password_hint": "（可選，留空自動生成）",
     "query_password_placeholder": "設定訂單查詢密碼",
     "query_token_hint": "請妥善保存此查詢令牌，稍後可用於查詢訂單",
-    "time": "時間"
+    "time": "時間",
+    "pending_payment_hint": "訂單待支付 — 如您尚未完成支付，請重新下單"
   },
   "payment": {
     "epay_title": "易支付設定",

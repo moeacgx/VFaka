@@ -260,6 +260,9 @@ onMounted(() => {
                 {{ expandedOrder === order.order_no ? $t('common.close') : $t('order.cards_snapshot') }} ▾
               </div>
             </div>
+            <div v-if="order.status === 'pending'" class="mt-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
+              {{ $t('order.pending_payment_hint') }}
+            </div>
           </div>
 
           <!-- Expanded card content -->

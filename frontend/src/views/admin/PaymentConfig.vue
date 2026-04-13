@@ -6,6 +6,9 @@ import { adminApi } from '../../api/admin'
 const { t } = useI18n()
 const loading = ref(true)
 const saving = ref<string | null>(null)
+const testingEpay = ref(false)
+const testingTokenpay = ref(false)
+const testResult = ref<{ channel: string; success: boolean; message: string } | null>(null)
 
 const epay = ref({
   is_active: false,
@@ -71,6 +74,22 @@ async function saveEpay() {
   }
 }
 
+async function testConnection(channel: string) {
+  if (channel === 'epay') testingEpay.value = true
+  else testingTokenpay.value = true
+  testResult.value = null
+
+  try {
+    const res = await adminApi.testPaymentConfig(channel)
+    testResult.value = { channel, ...res.data }
+  } catch (e: any) {
+    testResult.value = { channel, success: false, message: e.response?.data?.message || e.message }
+  } finally {
+    if (channel === 'epay') testingEpay.value = false
+    else testingTokenpay.value = false
+  }
+}
+
 async function saveTokenpay() {
   saving.value = 'tokenpay'
   try {
@@ -118,9 +137,17 @@ async function saveTokenpay() {
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.merchant_key') }}</label>
             <input v-model="epay.key" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white" />
           </div>
-          <button type="submit" :disabled="saving === 'epay'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
-            {{ saving === 'epay' ? $t('common.saving') : $t('payment.save_config') }}
-          </button>
+          <div class="flex gap-2">
+            <button type="submit" :disabled="saving === 'epay'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
+              {{ saving === 'epay' ? $t('common.saving') : $t('payment.save_config') }}
+            </button>
+            <button type="button" @click="testConnection('epay')" :disabled="testingEpay" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+              {{ testingEpay ? $t('common.processing') : $t('payment.test_connection') }}
+            </button>
+          </div>
+          <div v-if="testResult && testResult.channel === 'epay'" class="mt-3 text-sm px-3 py-2 rounded-md" :class="testResult.success ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'">
+            {{ testResult.success ? '✓' : '✗' }} {{ testResult.message }}
+          </div>
         </form>
       </div>
 
@@ -162,9 +189,17 @@ async function saveTokenpay() {
             </div>
           </div>
 
-          <button type="submit" :disabled="saving === 'tokenpay'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
-            {{ saving === 'tokenpay' ? $t('common.saving') : $t('payment.save_config') }}
-          </button>
+          <div class="flex gap-2">
+            <button type="submit" :disabled="saving === 'tokenpay'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50">
+              {{ saving === 'tokenpay' ? $t('common.saving') : $t('payment.save_config') }}
+            </button>
+            <button type="button" @click="testConnection('tokenpay')" :disabled="testingTokenpay" class="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+              {{ testingTokenpay ? $t('common.processing') : $t('payment.test_connection') }}
+            </button>
+          </div>
+          <div v-if="testResult && testResult.channel === 'tokenpay'" class="mt-3 text-sm px-3 py-2 rounded-md" :class="testResult.success ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'">
+            {{ testResult.success ? '✓' : '✗' }} {{ testResult.message }}
+          </div>
         </form>
       </div>
     </div>

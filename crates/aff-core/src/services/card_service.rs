@@ -9,7 +9,12 @@ pub async fn list_cards(
     product_id: Option<i32>,
     variant_id: Option<i32>,
     status: Option<String>,
-) -> AppResult<Vec<card::Model>> {
+    page: u64,
+    per_page: u64,
+) -> AppResult<(Vec<card::Model>, u64)> {
+    let page = if page == 0 { 1 } else { page };
+    let per_page = if per_page == 0 { 20 } else { per_page };
+
     let mut query = card::Entity::find().order_by_desc(card::Column::CreatedAt);
 
     if let Some(pid) = product_id {
@@ -22,10 +27,17 @@ pub async fn list_cards(
         query = query.filter(card::Column::Status.eq(s));
     }
 
-    query
-        .all(db)
+    let paginator = query.paginate(db, per_page);
+    let total = paginator
+        .num_items()
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let items = paginator
+        .fetch_page(page - 1)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok((items, total))
 }
 
 pub async fn import_cards(

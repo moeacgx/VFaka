@@ -150,7 +150,10 @@
     "no_variants": "暂无选项卡",
     "select_variant": "请选择选项",
     "select_variant_required": "请选择一个选项",
-    "all_variants": "所有选项"
+    "all_variants": "所有选项",
+    "popup_blocked_hint": "浏览器拦截了支付窗口，请点击下方按钮手动打开",
+    "open_payment": "打开支付页面",
+    "continue_to_order": "继续查看订单"
   },
   "category": {
     "name": "分类名称",
@@ -220,7 +223,8 @@
     "query_password_hint": "（可选，留空自动生成）",
     "query_password_placeholder": "设置订单查询密码",
     "query_token_hint": "请妥善保存此查询令牌，稍后可用于查询订单",
-    "time": "时间"
+    "time": "时间",
+    "pending_payment_hint": "订单待支付 — 如您尚未完成支付，请重新下单"
   },
   "payment": {
     "epay_title": "易支付配置",

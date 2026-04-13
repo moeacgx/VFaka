@@ -68,6 +68,9 @@ const orderQuantity = ref(1)
 const paymentMethod = ref('')
 const orderLoading = ref(false)
 const orderError = ref('')
+const paymentFallbackUrl = ref('')
+const pendingOrderNo = ref('')
+const pendingOrderToken = ref('')
 
 // Coupon state
 const couponCode = ref('')
@@ -256,6 +259,8 @@ async function submitOrder() {
   orderLoading.value = true
   orderError.value = ''
 
+  const payWindow = window.open('about:blank', '_blank')
+
   try {
     const affCode = getAffCode()
     const res = await publicApi.createOrder({
@@ -271,15 +276,34 @@ async function submitOrder() {
     const data = res.data
     closeModal()
     if (data.payment_url) {
-      // Open payment in new tab, stay on order query page so user doesn't lose order info
-      window.open(data.payment_url, '_blank')
+      if (payWindow) {
+        payWindow.location.href = data.payment_url
+      } else {
+        // Popup was blocked — show fallback UI
+        pendingOrderNo.value = data.order_no
+        pendingOrderToken.value = data.query_token
+        paymentFallbackUrl.value = data.payment_url
+        return
+      }
+    } else {
+      payWindow?.close()
     }
     router.push({ path: '/order', query: { no: data.order_no, token: data.query_token } })
   } catch (e: any) {
+    payWindow?.close()
     orderError.value = e.response?.data?.message || e.response?.data?.error || t('product.create_order_failed')
   } finally {
     orderLoading.value = false
   }
+}
+
+function navigateToOrder() {
+  const no = pendingOrderNo.value
+  const token = pendingOrderToken.value
+  paymentFallbackUrl.value = ''
+  pendingOrderNo.value = ''
+  pendingOrderToken.value = ''
+  router.push({ path: '/order', query: { no, token } })
 }
 
 onMounted(async () => {
@@ -562,5 +586,14 @@ onMounted(async () => {
         </div>
       </div>
     </Teleport>
+
+    <!-- Payment popup blocked fallback -->
+    <div v-if="paymentFallbackUrl" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-xl">
+        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">{{ $t('product.popup_blocked_hint') }}</p>
+        <a :href="paymentFallbackUrl" target="_blank" class="block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 mb-3">{{ $t('product.open_payment') }}</a>
+        <button @click="navigateToOrder()" class="block w-full text-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700">{{ $t('product.continue_to_order') }}</button>
+      </div>
+    </div>
   </main>
 </template>

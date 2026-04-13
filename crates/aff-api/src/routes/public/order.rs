@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use sea_orm::DatabaseConnection;
 use serde::Deserialize;
-use tracing::info;
+use tracing::{info, warn};
 
 use aff_common::config::AppConfig;
 use aff_common::error::{AppError, AppResult};
@@ -301,11 +301,21 @@ pub async fn create_order(
         "Order created successfully"
     );
 
+    let has_pay_url = pay_resp.pay_url.as_ref().map_or(false, |u| !u.is_empty());
+    let has_qr_code = pay_resp.qr_code.as_ref().map_or(false, |q| !q.is_empty());
+    let warning = if !has_pay_url && !has_qr_code {
+        warn!(order_no = %order_no, "Payment response has no pay_url or qr_code");
+        Some("No payment URL returned")
+    } else {
+        None
+    };
+
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "order_no": order_no,
         "payment_url": pay_resp.pay_url,
         "qr_code": pay_resp.qr_code,
         "query_token": order.query_token,
+        "warning": warning,
     })))
 }
 

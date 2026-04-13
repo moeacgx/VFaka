@@ -12,6 +12,9 @@ const products = ref<any[]>([])
 const filterProduct = ref<number | string>('')
 const filterVariant = ref<number | string>('')
 const filterStatus = ref('')
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 const showImport = ref(false)
 const editingCard = ref<number | null>(null)
 const editContent = ref('')
@@ -42,8 +45,11 @@ async function load() {
     if (filterProduct.value) params.product_id = filterProduct.value
     if (filterVariant.value) params.variant_id = filterVariant.value
     if (filterStatus.value) params.status = filterStatus.value
+    params.page = page.value
+    params.per_page = pageSize.value
     const [cRes, pRes] = await Promise.all([adminApi.getCards(params), adminApi.getProducts()])
-    cards.value = cRes.data || []
+    cards.value = cRes.data.items || cRes.data || []
+    total.value = cRes.data.total || 0
     products.value = pRes.data || []
   } catch (e) {
     console.error(e)
@@ -54,6 +60,7 @@ async function load() {
 
 function onFilterProductChange() {
   filterVariant.value = ''
+  page.value = 1
   load()
 }
 
@@ -138,11 +145,11 @@ onMounted(load)
           <option value="">{{ $t('card.all_products') }}</option>
           <option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
-        <select v-if="filterVariants.length > 0" v-model="filterVariant" @change="load" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+        <select v-if="filterVariants.length > 0" v-model="filterVariant" @change="page = 1; load()" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
           <option value="">{{ $t('product.all_variants') }}</option>
           <option v-for="v in filterVariants" :key="v.id" :value="v.id">{{ v.name }}</option>
         </select>
-        <select v-model="filterStatus" @change="load" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+        <select v-model="filterStatus" @change="page = 1; load()" class="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
           <option value="">{{ $t('card.all_status') }}</option>
           <option value="available">{{ $t('card.available') }}</option>
           <option value="sold">{{ $t('card.sold') }}</option>
@@ -237,6 +244,29 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="total > 0" class="flex items-center justify-between mt-4 px-1">
+      <span class="text-sm text-gray-500 dark:text-gray-400">
+        {{ $t('common.total') }} {{ total }} {{ $t('card.total_cards') }}
+      </span>
+      <div class="flex items-center gap-2">
+        <select v-model="pageSize" @change="page = 1; load()" class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+          <option :value="20">20</option>
+          <option :value="50">50</option>
+          <option :value="100">100</option>
+        </select>
+        <button @click="page > 1 && (page--, load())" :disabled="page <= 1" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 dark:text-gray-200">
+          {{ $t('common.prev_page') }}
+        </button>
+        <span class="text-sm text-gray-600 dark:text-gray-300">
+          {{ $t('common.page_info', { current: page, total: Math.ceil(total / pageSize) || 1 }) }}
+        </span>
+        <button @click="page < Math.ceil(total / pageSize) && (page++, load())" :disabled="page >= Math.ceil(total / pageSize)" class="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 dark:text-gray-200">
+          {{ $t('common.next_page') }}
+        </button>
+      </div>
     </div>
   </div>
 </template>

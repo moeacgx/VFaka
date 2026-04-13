@@ -150,7 +150,10 @@
     "no_variants": "No variants",
     "select_variant": "Select variant",
     "select_variant_required": "Please select a variant",
-    "all_variants": "All Variants"
+    "all_variants": "All Variants",
+    "popup_blocked_hint": "Your browser blocked the payment window. Click below to open it manually.",
+    "open_payment": "Open Payment Page",
+    "continue_to_order": "Continue to Order"
   },
   "category": {
     "name": "Category Name",
@@ -220,7 +223,8 @@
     "query_password_hint": "(optional, auto-generated if empty)",
     "query_password_placeholder": "Set a password for order lookup",
     "query_token_hint": "Save this query token — you can use it to check your order later",
-    "time": "Time"
+    "time": "Time",
+    "pending_payment_hint": "Payment pending — if you haven't completed payment, please create a new order."
   },
   "payment": {
     "epay_title": "Epay Configuration",

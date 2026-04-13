@@ -129,6 +129,15 @@ impl PaymentProvider for TokenPayProvider {
             pay_url: None,
         });
 
+        match &data.pay_url {
+            Some(url) if !url.is_empty() => {}
+            _ => {
+                return Err(AppError::PaymentError(
+                    "TokenPay returned no pay_url".to_string(),
+                ));
+            }
+        }
+
         Ok(PaymentResponse {
             trade_no: data.order_id.unwrap_or_default(),
             pay_url: data.pay_url,

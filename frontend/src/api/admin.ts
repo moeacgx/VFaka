@@ -35,6 +35,7 @@ export const adminApi = {
   // Payment Config
   getPaymentConfigs: () => request.get('/admin/payment-configs'),
   updatePaymentConfig: (channel: string, data: any) => request.put(`/admin/payment-configs/${channel}`, data),
+  testPaymentConfig: (channel: string) => request.post(`/admin/payment-configs/${channel}/test`),
 
   // AFF
   getAffUsers: (params?: any) => request.get('/admin/aff/users', { params }),

@@ -11,6 +11,8 @@ pub struct CardListQuery {
     pub product_id: Option<i32>,
     pub variant_id: Option<i32>,
     pub status: Option<String>,
+    pub page: Option<u64>,
+    pub per_page: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -30,9 +32,16 @@ async fn list(
     db: web::Data<DatabaseConnection>,
     query: web::Query<CardListQuery>,
 ) -> AppResult<HttpResponse> {
-    let cards =
-        card_service::list_cards(&db, query.product_id, query.variant_id, query.status.clone()).await?;
-    Ok(HttpResponse::Ok().json(cards))
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(20);
+    let (cards, total) =
+        card_service::list_cards(&db, query.product_id, query.variant_id, query.status.clone(), page, per_page).await?;
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "items": cards,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    })))
 }
 
 async fn import(
