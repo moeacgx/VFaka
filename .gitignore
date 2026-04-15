@@ -20,6 +20,7 @@ config.local.toml
 # IDE
 .idea/
 .vscode/
+.serena/
 *.swp
 *.swo
 *~

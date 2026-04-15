@@ -13,6 +13,7 @@ use crate::provider::{CallbackData, CallbackRawData, PaymentProvider, PaymentReq
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EpayConfig {
     pub pid: String,
+    #[serde(alias = "merchant_private_key", alias = "merchant_key")]
     pub key: String,
     pub api_url: String,
 }

@@ -66,11 +66,14 @@ async fn execute_webhook(url: &str, order: &order::Model) -> AppResult<String> {
     let result = format!("HTTP {} - {}", status.as_u16(), body);
     if status.is_success() {
         info!(order_no = %order.order_no, "Webhook succeeded: {}", result);
+        Ok(result)
     } else {
         warn!(order_no = %order.order_no, "Webhook returned non-success: {}", result);
+        Err(AppError::Internal(format!(
+            "Webhook returned non-success: {}",
+            result
+        )))
     }
-
-    Ok(result)
 }
 
 async fn execute_command(command: &str, order: &order::Model) -> AppResult<String> {
@@ -114,22 +117,22 @@ async fn execute_command(command: &str, order: &order::Model) -> AppResult<Strin
 
             if output.status.success() {
                 info!(order_no = %order.order_no, "Command succeeded: {}", result_str);
+                Ok(result_str)
             } else {
                 warn!(order_no = %order.order_no, "Command failed: {}", result_str);
+                Err(AppError::Internal(format!("Command failed: {}", result_str)))
             }
-
-            Ok(result_str)
         }
         Ok(Err(e)) => {
             let msg = format!("Command execution error: {}", e);
             warn!(order_no = %order.order_no, "{}", msg);
-            Ok(msg)
+            Err(AppError::Internal(msg))
         }
         Err(_) => {
             // Timeout — kill_on_drop will handle cleanup
             let msg = "Command timed out after 30 seconds".to_string();
             warn!(order_no = %order.order_no, "{}", msg);
-            Ok(msg)
+            Err(AppError::Internal(msg))
         }
     }
 }

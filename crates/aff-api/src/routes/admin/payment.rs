@@ -18,6 +18,17 @@ pub fn scope() -> actix_web::Scope {
         .route("/{channel}/test", web::post().to(test_connection))
 }
 
+fn normalize_epay_base_url(url: &str) -> String {
+    let mut base = url.trim().trim_end_matches('/').to_string();
+    for suffix in ["/submit.php", "/mapi.php", "/api.php"] {
+        if base.ends_with(suffix) {
+            base.truncate(base.len() - suffix.len());
+            break;
+        }
+    }
+    base
+}
+
 fn mask_sensitive_value(value: &str) -> String {
     let chars: Vec<char> = value.chars().collect();
     if chars.len() <= 6 {
@@ -104,18 +115,52 @@ async fn test_connection(
         .build()
         .unwrap_or_default();
 
-    match client.get(api_url).send().await {
-        Ok(resp) => {
-            let status = resp.status();
-            Ok(HttpResponse::Ok().json(serde_json::json!({
-                "success": status.is_success() || status.is_redirection(),
-                "message": format!("HTTP {}", status),
-            })))
+    match channel.as_str() {
+        "epay" => {
+            let base_url = normalize_epay_base_url(api_url);
+            match client.get(&base_url).send().await {
+                Ok(resp) => {
+                    let status = resp.status();
+                    let code = status.as_u16();
+                    let reachable = status.is_success()
+                        || status.is_redirection()
+                        || matches!(code, 400 | 401 | 403 | 404 | 405);
+
+                    let message = if reachable {
+                        format!(
+                            "易支付地址可访问，探测返回 HTTP {}。空请求返回 4xx 在易支付站点中通常属正常；真实下单会优先请求 {}/mapi.php，失败后回退到 {}/submit.php。",
+                            status, base_url, base_url
+                        )
+                    } else {
+                        format!("易支付地址探测失败：HTTP {}", status)
+                    };
+
+                    Ok(HttpResponse::Ok().json(serde_json::json!({
+                        "success": reachable,
+                        "message": message,
+                        "normalized_api_url": base_url,
+                    })))
+                }
+                Err(e) => Ok(HttpResponse::Ok().json(serde_json::json!({
+                    "success": false,
+                    "message": format!("易支付连接失败: {}", e),
+                    "normalized_api_url": base_url,
+                }))),
+            }
         }
-        Err(e) => Ok(HttpResponse::Ok().json(serde_json::json!({
-            "success": false,
-            "message": format!("Connection failed: {}", e),
-        }))),
+        _ => match client.get(api_url).send().await {
+            Ok(resp) => {
+                let status = resp.status();
+                Ok(HttpResponse::Ok().json(serde_json::json!({
+                    "success": status.is_success() || status.is_redirection(),
+                    "message": format!("HTTP {}", status),
+                })))
+            }
+            Err(e) => Ok(HttpResponse::Ok().json(serde_json::json!({
+                "success": false,
+                "message": format!("Connection failed: {}", e),
+            }))),
+        },
     }
 }
 

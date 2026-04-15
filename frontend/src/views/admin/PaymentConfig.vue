@@ -36,7 +36,7 @@ onMounted(async () => {
         const raw = cfg.config_json || '{}'
         const c = typeof raw === 'string' ? JSON.parse(raw) : raw
         epay.value.pid = c.pid || ''
-        epay.value.key = c.key || ''
+        epay.value.key = c.key || c.merchant_private_key || c.merchant_key || ''
         epay.value.api_url = c.api_url || ''
       } else if (cfg.channel === 'tokenpay') {
         tokenpay.value.is_active = !!cfg.is_active
@@ -132,6 +132,7 @@ async function saveTokenpay() {
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.api_url') }}</label>
             <input v-model="epay.api_url" placeholder="https://pay.example.com" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ $t('payment.epay_api_url_hint') }}</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.merchant_key') }}</label>

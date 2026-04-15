@@ -5,12 +5,15 @@ use tracing::{error, info, warn};
 use aff_common::config::AppConfig;
 use aff_common::error::{AppError, AppResult};
 use aff_core::services::{
-    aff_service, card_service, order_service, payment_config_service, post_action, product_service,
-    settings_service,
+    aff_service, card_service, order_service, payment_config_service, post_action, settings_service,
 };
 use aff_entity::entities::card;
 use aff_payment::create_provider;
 use aff_payment::provider::CallbackRawData;
+
+fn is_webhook_delivery(mode: &str) -> bool {
+    mode.eq_ignore_ascii_case("webhook")
+}
 
 async fn load_telegram_config(db: &DatabaseConnection) -> aff_notify::telegram::TelegramConfig {
     let bot_token = settings_service::get_setting(db, "telegram_bot_token")
@@ -100,64 +103,97 @@ async fn do_delivery(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Order {} not found", order_no)))?;
 
-    // Deliver cards: find locked cards bound to this order
-    use sea_orm::ColumnTrait;
-    use sea_orm::QueryFilter;
-    let locked_cards = card::Entity::find()
-        .filter(card::Column::OrderId.eq(order.id))
-        .filter(card::Column::Status.eq("locked"))
-        .all(db)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-    let card_ids: Vec<i32> = locked_cards.iter().map(|c| c.id).collect();
-
-    if card_ids.len() < order.quantity as usize {
-        warn!(
-            order_no = %order_no,
-            "Not enough locked cards for delivery: need {}, have {}",
-            order.quantity,
-            card_ids.len()
-        );
-    }
-
-    // Deliver cards
-    card_service::deliver_cards(db, &card_ids, order.id).await?;
-
-    // Build cards snapshot
-    let delivered_cards: Vec<&card::Model> = locked_cards
-        .iter()
-        .filter(|c| card_ids.contains(&c.id))
-        .collect();
-    let snapshot: Vec<String> = delivered_cards.iter().map(|c| c.content.clone()).collect();
-    let cards_snapshot = snapshot.join("\n");
-
-    // Update order to delivered with cards snapshot
-    order_service::deliver_order(db, order_no, &cards_snapshot).await?;
-
-    // Update product sales_count
-    let product = product_service::get_product(db, order.product_id).await?;
-    let _ = product; // stock_count already updated by card_service
-
-    // Execute post_pay_action if configured
-    let order = order_service::get_order_by_no(db, order_no)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("Order {} not found", order_no)))?;
-
     let product_model = aff_entity::entities::product::Entity::find_by_id(order.product_id)
         .one(db)
         .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound(format!("Product {} not found", order.product_id)))?;
 
-    if let Some(product_model) = product_model {
+    if is_webhook_delivery(&product_model.delivery_mode) {
+        let cards_snapshot = "此订单为自动发货商品，请以 webhook / 外部系统实际到账结果为准";
+
+        if order.post_action_status.as_deref() != Some("success") {
+            let action_type = product_model
+                .post_pay_action_type
+                .as_deref()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    AppError::BadRequest("Webhook 发货商品未配置支付后动作类型".into())
+                })?;
+            let action_value = product_model
+                .post_pay_action_value
+                .as_deref()
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    AppError::BadRequest("Webhook 发货商品未配置支付后动作参数".into())
+                })?;
+
+            let _ = order_service::set_post_action_result(db, order_no, "pending", "pending").await;
+
+            match post_action::execute_post_action(action_type, action_value, &order, Some(config)).await {
+                Ok(result) => {
+                    order_service::set_post_action_result(db, order_no, &result, "success").await?;
+                }
+                Err(e) => {
+                    error!(order_no = %order_no, "Webhook delivery action failed: {}", e);
+                    let _ = order_service::set_post_action_result(
+                        db,
+                        order_no,
+                        &format!("ERROR: {}", e),
+                        "failed",
+                    )
+                    .await;
+                    return Err(e);
+                }
+            }
+        }
+
+        order_service::deliver_order(db, order_no, cards_snapshot).await?;
+    } else {
+        // 卡密发货：查找当前订单锁定的卡密并发放
+        use sea_orm::ColumnTrait;
+        use sea_orm::QueryFilter;
+
+        let locked_cards = card::Entity::find()
+            .filter(card::Column::OrderId.eq(order.id))
+            .filter(card::Column::Status.eq("locked"))
+            .all(db)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let card_ids: Vec<i32> = locked_cards.iter().map(|c| c.id).collect();
+
+        if card_ids.len() < order.quantity as usize {
+            warn!(
+                order_no = %order_no,
+                "Not enough locked cards for delivery: need {}, have {}",
+                order.quantity,
+                card_ids.len()
+            );
+        }
+
+        card_service::deliver_cards(db, &card_ids, order.id).await?;
+
+        let delivered_cards: Vec<&card::Model> = locked_cards
+            .iter()
+            .filter(|c| card_ids.contains(&c.id))
+            .collect();
+        let snapshot: Vec<String> = delivered_cards.iter().map(|c| c.content.clone()).collect();
+        let cards_snapshot = snapshot.join("\n");
+
+        order_service::deliver_order(db, order_no, &cards_snapshot).await?;
+
+        let latest_order = order_service::get_order_by_no(db, order_no)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Order {} not found", order_no)))?;
+
         if let (Some(action_type), Some(action_value)) = (
             &product_model.post_pay_action_type,
             &product_model.post_pay_action_value,
         ) {
             if !action_type.is_empty() && !action_value.is_empty() {
-                // Mark post action as pending
                 let _ = order_service::set_post_action_result(db, order_no, "pending", "pending").await;
 
-                match post_action::execute_post_action(action_type, action_value, &order, Some(config)).await {
+                match post_action::execute_post_action(action_type, action_value, &latest_order, Some(config)).await {
                     Ok(result) => {
                         let _ = order_service::set_post_action_result(db, order_no, &result, "success").await;
                     }
@@ -174,36 +210,36 @@ async fn do_delivery(
                 }
             }
         }
+    }
 
-        // Update sales_count atomically
-        use sea_orm::*;
-        use sea_orm::sea_query::Expr;
-        aff_entity::entities::product::Entity::update_many()
+    // Update sales_count atomically
+    use sea_orm::*;
+    use sea_orm::sea_query::Expr;
+    aff_entity::entities::product::Entity::update_many()
+        .col_expr(
+            aff_entity::entities::product::Column::SalesCount,
+            Expr::col(aff_entity::entities::product::Column::SalesCount).add(order.quantity),
+        )
+        .col_expr(
+            aff_entity::entities::product::Column::UpdatedAt,
+            Expr::value(chrono::Utc::now()),
+        )
+        .filter(aff_entity::entities::product::Column::Id.eq(order.product_id))
+        .exec(db)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    // Update variant sales_count atomically if applicable
+    if let Some(vid) = order.variant_id {
+        aff_entity::entities::product_variant::Entity::update_many()
             .col_expr(
-                aff_entity::entities::product::Column::SalesCount,
-                Expr::col(aff_entity::entities::product::Column::SalesCount).add(order.quantity),
+                aff_entity::entities::product_variant::Column::SalesCount,
+                Expr::col(aff_entity::entities::product_variant::Column::SalesCount).add(order.quantity),
             )
-            .col_expr(
-                aff_entity::entities::product::Column::UpdatedAt,
-                Expr::value(chrono::Utc::now()),
-            )
-            .filter(aff_entity::entities::product::Column::Id.eq(order.product_id))
+            .filter(aff_entity::entities::product_variant::Column::Id.eq(vid))
             .exec(db)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Update variant sales_count atomically if applicable
-        if let Some(vid) = order.variant_id {
-            aff_entity::entities::product_variant::Entity::update_many()
-                .col_expr(
-                    aff_entity::entities::product_variant::Column::SalesCount,
-                    Expr::col(aff_entity::entities::product_variant::Column::SalesCount).add(order.quantity),
-                )
-                .filter(aff_entity::entities::product_variant::Column::Id.eq(vid))
-                .exec(db)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-        }
     }
 
     // Process AFF commission

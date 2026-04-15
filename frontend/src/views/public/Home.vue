@@ -42,6 +42,7 @@ interface Product {
   allow_usdt_trc20: boolean
   allow_trx: boolean
   allow_usdt_erc20: boolean
+  delivery_mode: string
   min_quantity: number
   max_quantity: number
   image_url?: string
@@ -143,11 +144,41 @@ const subtotalPrice = computed(() => {
   return currentPrice.value * orderQuantity.value
 })
 
+function isWebhookDelivery(product: Product | null | undefined): boolean {
+  return product?.delivery_mode === 'webhook'
+}
+
+function productHasStock(product: Product): boolean {
+  if (isWebhookDelivery(product)) return true
+  if (product.variants && product.variants.length > 0) {
+    return product.variants.some(v => v.is_active && v.stock_count > 0)
+  }
+  return product.stock_count > 0
+}
+
+function getProductStockText(product: Product): string {
+  if (isWebhookDelivery(product)) return t('product.delivery_mode_webhook')
+  if (product.variants && product.variants.length > 0) {
+    const total = product.variants
+      .filter(v => v.is_active)
+      .reduce((sum, variant) => sum + Math.max(variant.stock_count, 0), 0)
+    return `${t('product.stock')} ${total}`
+  }
+  return `${t('product.stock')} ${product.stock_count}`
+}
+
+const currentStockText = computed(() => {
+  if (isWebhookDelivery(selectedProduct.value)) return t('product.delivery_mode_webhook')
+  return `${t('product.stock')} ${currentStock.value}`
+})
+
 // Reset variant when modal opens or product changes
 watch(selectedProduct, () => {
   if (selectedProduct.value && hasVariants.value) {
-    const inStock = activeVariants.value.find(v => v.stock_count > 0)
-    selectedVariantId.value = inStock?.id || activeVariants.value[0]?.id || null
+    const preferred = isWebhookDelivery(selectedProduct.value)
+      ? activeVariants.value[0]
+      : activeVariants.value.find(v => v.stock_count > 0) || activeVariants.value[0]
+    selectedVariantId.value = preferred?.id || null
   } else {
     selectedVariantId.value = null
   }
@@ -379,18 +410,18 @@ onMounted(async () => {
             <div class="flex items-end justify-between mt-auto">
               <div>
                 <span class="text-lg font-bold text-gray-900 dark:text-white">{{ getProductDisplayPrice(product) }}</span>
-                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{{ $t('product.stock') }} {{ product.stock_count }}</span>
+                <span class="text-xs text-gray-400 dark:text-gray-500 ml-2">{{ getProductStockText(product) }}</span>
               </div>
               <button
                 @click="openBuyModal(product)"
-                :disabled="product.stock_count <= 0"
+                :disabled="!productHasStock(product)"
                 :class="[
                   'px-4 py-1.5 rounded-lg text-sm font-medium transition-all',
-                  product.stock_count > 0
+                  productHasStock(product)
                     ? 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 ]"
-              >{{ product.stock_count > 0 ? $t('product.buy_now') : $t('product.out_of_stock') }}</button>
+              >{{ productHasStock(product) ? $t('product.buy_now') : $t('product.out_of_stock') }}</button>
             </div>
           </div>
         </div>
@@ -422,11 +453,11 @@ onMounted(async () => {
               <button
                 v-for="v in activeVariants"
                 :key="v.id"
-                @click="v.stock_count > 0 ? selectedVariantId = v.id : null"
-                :disabled="v.stock_count <= 0"
+                @click="(isWebhookDelivery(selectedProduct) || v.stock_count > 0) ? selectedVariantId = v.id : null"
+                :disabled="!isWebhookDelivery(selectedProduct) && v.stock_count <= 0"
                 :class="[
                   'px-3 py-2 rounded-lg border text-sm font-medium transition-all',
-                  v.stock_count <= 0
+                  !isWebhookDelivery(selectedProduct) && v.stock_count <= 0
                     ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed'
                     : selectedVariantId === v.id
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500'
@@ -445,7 +476,7 @@ onMounted(async () => {
           <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-5">
             <div class="text-sm text-gray-500 dark:text-gray-400">{{ $t('product.price') }}</div>
             <div class="text-2xl font-bold text-gray-900 dark:text-white">¥{{ currentPrice.toFixed(2) }}</div>
-            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ $t('product.stock') }} {{ currentStock }}</div>
+            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ currentStockText }}</div>
           </div>
 
           <!-- Email -->

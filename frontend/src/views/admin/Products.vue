@@ -29,6 +29,7 @@ const defaultForm = () => ({
   allow_alipay: true, allow_wxpay: true, allow_qqpay: false,
   allow_usdt_trc20: false, allow_usdt_erc20: false, allow_trx: false,
   post_pay_action_type: 'none', post_pay_action_value: '',
+  delivery_mode: 'card',
   aff_commission_rate: null as number | null,
   sort_order: 0, min_quantity: 1, max_quantity: 10, is_active: true,
   image_url: null as string | null, video_url: null as string | null,
@@ -111,6 +112,7 @@ function openEdit(p: any) {
     allow_alipay: !!p.allow_alipay, allow_wxpay: !!p.allow_wxpay, allow_qqpay: !!p.allow_qqpay,
     allow_usdt_trc20: !!p.allow_usdt_trc20, allow_usdt_erc20: !!p.allow_usdt_erc20, allow_trx: !!p.allow_trx,
     post_pay_action_type: p.post_pay_action_type || 'none', post_pay_action_value: p.post_pay_action_value || '',
+    delivery_mode: p.delivery_mode || 'card',
     aff_commission_rate: p.aff_commission_rate ?? null,
     sort_order: p.sort_order || 0, min_quantity: p.min_quantity || 1, max_quantity: p.max_quantity || 10, is_active: p.is_active !== false,
     image_url: p.image_url || null, video_url: p.video_url || null,
@@ -271,6 +273,8 @@ const restockVariants = computed(() => {
   return product?.variants || []
 })
 
+const isWebhookDelivery = computed(() => form.value.delivery_mode === 'webhook')
+
 onMounted(load)
 </script>
 
@@ -373,6 +377,20 @@ onMounted(load)
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.delivery_mode') }}</label>
+              <select v-model="form.delivery_mode" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+                <option value="card">{{ $t('product.delivery_mode_card') }}</option>
+                <option value="webhook">{{ $t('product.delivery_mode_webhook') }}</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <p class="text-xs text-amber-600 dark:text-amber-400 pb-2">
+                {{ isWebhookDelivery ? $t('product.delivery_mode_hint_webhook') : $t('product.delivery_mode_hint_card') }}
+              </p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('product.aff_rate') }} (%)</label>
               <input v-model.number="form.aff_commission_rate" type="number" step="0.1" min="0" max="100" :placeholder="$t('product.aff_rate_hint')" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             </div>
@@ -443,7 +461,9 @@ onMounted(load)
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">{{ p.name }}</td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.category_name || '-' }}</td>
             <td class="px-4 py-3 text-gray-800 dark:text-gray-100">¥{{ p.price?.toFixed(2) }}</td>
-            <td class="px-4 py-3" :class="(p.stock_count ?? 0) < 5 ? 'text-red-600 font-medium' : 'text-gray-600 dark:text-gray-300'">{{ p.stock_count ?? 0 }}</td>
+            <td class="px-4 py-3" :class="p.delivery_mode === 'webhook' ? 'text-blue-600 font-medium' : ((p.stock_count ?? 0) < 5 ? 'text-red-600 font-medium' : 'text-gray-600 dark:text-gray-300')">
+              {{ p.delivery_mode === 'webhook' ? $t('product.delivery_mode_webhook') : (p.stock_count ?? 0) }}
+            </td>
             <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.sales_count ?? 0 }}</td>
             <td class="px-4 py-3">
               <span :class="p.is_active ? 'text-green-600 bg-green-50' : 'text-gray-500 bg-gray-100'" class="inline-block px-2 py-0.5 rounded text-xs font-medium">

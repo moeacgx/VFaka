@@ -44,6 +44,10 @@ fn is_method_allowed(product: &aff_entity::dto::ProductResponse, method: &str) -
     }
 }
 
+fn is_webhook_delivery(mode: &str) -> bool {
+    mode.eq_ignore_ascii_case("webhook")
+}
+
 fn is_valid_email(email: &str) -> bool {
     let trimmed = email.trim();
     if trimmed.is_empty() || trimmed.len() > 254 {
@@ -88,6 +92,7 @@ pub async fn create_order(
     if !product.is_active {
         return Err(AppError::BadRequest("Product is not available".into()));
     }
+    let is_webhook_product = is_webhook_delivery(&product.delivery_mode);
 
     // 2. Resolve variant (if applicable)
     let has_variants = !product.variants.is_empty();
@@ -106,7 +111,7 @@ pub async fn create_order(
     };
 
     // 3. Check stock
-    if check_stock < dto.quantity {
+    if !is_webhook_product && check_stock < dto.quantity {
         return Err(AppError::Conflict(format!(
             "Insufficient stock: available {}, requested {}",
             check_stock, dto.quantity
@@ -199,22 +204,34 @@ pub async fn create_order(
     .await?;
 
     // 10. Lock cards FIRST (before coupon — so failure doesn't consume coupon)
-    let locked_cards = match card_service::lock_cards(db.get_ref(), dto.product_id, variant_id, dto.quantity, order.id).await {
-        Ok(cards) => cards,
-        Err(e) => {
-            // Cards failed to lock — mark order failed, nothing else to rollback
-            let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
-            return Err(e);
-        }
-    };
+    let mut locked_card_ids: Vec<i32> = Vec::new();
+    if !is_webhook_product {
+        let locked_cards = match card_service::lock_cards(
+            db.get_ref(),
+            dto.product_id,
+            variant_id,
+            dto.quantity,
+            order.id,
+        )
+        .await
+        {
+            Ok(cards) => cards,
+            Err(e) => {
+                // 卡密锁定失败，订单直接置为失败
+                let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
+                return Err(e);
+            }
+        };
 
-    let locked_card_ids: Vec<i32> = locked_cards.iter().map(|c| c.id).collect();
+        locked_card_ids = locked_cards.iter().map(|c| c.id).collect();
+    }
 
     // 10b. Atomically increment coupon usage AFTER cards are locked
     if let Some(ref code) = coupon_code_used {
         if let Err(e) = coupon_service::use_coupon(db.get_ref(), code).await {
-            // Coupon failed — release locked cards, mark order failed
-            let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            if !locked_card_ids.is_empty() {
+                let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            }
             let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
             return Err(e);
         }
@@ -228,11 +245,13 @@ pub async fn create_order(
     {
         Some(c) => c,
         None => {
-            // Payment config missing — rollback coupon + cards
+            // 支付配置缺失，回滚优惠券与已锁定卡密
             if let Some(ref code) = coupon_code_used {
                 let _ = coupon_service::unuse_coupon(db.get_ref(), code).await;
             }
-            let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            if !locked_card_ids.is_empty() {
+                let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            }
             let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
             return Err(AppError::BadRequest(format!("Payment channel '{}' is not configured", channel)));
         }
@@ -279,12 +298,14 @@ pub async fn create_order(
     let pay_resp = match provider.create_payment(pay_req).await {
         Ok(resp) => resp,
         Err(e) => {
-            // Payment provider failed — rollback coupon + cards, mark order failed
+            // 支付下单失败，回滚优惠券与已锁定卡密
             tracing::warn!(order_no = %order_no, error = %e, "Payment creation failed, rolling back");
             if let Some(ref code) = coupon_code_used {
                 let _ = coupon_service::unuse_coupon(db.get_ref(), code).await;
             }
-            let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            if !locked_card_ids.is_empty() {
+                let _ = card_service::release_cards(db.get_ref(), &locked_card_ids).await;
+            }
             let _ = order_service::update_order_status(db.get_ref(), &order_no, "failed").await;
             return Err(e);
         }

@@ -21,6 +21,7 @@ pub struct Model {
     pub allow_usdt_erc20: bool,
     pub post_pay_action_type: Option<String>,
     pub post_pay_action_value: Option<String>,
+    pub delivery_mode: String,
     pub aff_commission_rate: Option<f64>,
     pub sort_order: i32,
     pub min_quantity: i32,

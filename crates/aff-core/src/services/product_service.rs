@@ -5,6 +5,17 @@ use aff_common::error::{AppError, AppResult};
 use aff_entity::dto::{CreateProductDto, ProductResponse, UpdateProductDto, VariantResponse};
 use aff_entity::entities::{card, category, order, product, product_variant};
 
+fn normalize_delivery_mode(mode: Option<String>) -> String {
+    match mode
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some("webhook") => "webhook".to_string(),
+        _ => "card".to_string(),
+    }
+}
+
 pub async fn list_products(
     db: &DatabaseConnection,
     category_id: Option<i32>,
@@ -93,6 +104,7 @@ pub async fn create_product(
         allow_usdt_erc20: Set(dto.allow_usdt_erc20.unwrap_or(false)),
         post_pay_action_type: Set(dto.post_pay_action_type),
         post_pay_action_value: Set(dto.post_pay_action_value),
+        delivery_mode: Set(normalize_delivery_mode(dto.delivery_mode)),
         aff_commission_rate: Set(dto.aff_commission_rate),
         sort_order: Set(dto.sort_order.unwrap_or(0)),
         min_quantity: Set(dto.min_quantity.unwrap_or(1)),
@@ -161,6 +173,9 @@ pub async fn update_product(
     }
     if let Some(v) = dto.post_pay_action_value {
         model.post_pay_action_value = Set(if v.is_empty() { None } else { Some(v) });
+    }
+    if dto.delivery_mode.is_some() {
+        model.delivery_mode = Set(normalize_delivery_mode(dto.delivery_mode));
     }
     if let Some(v) = dto.aff_commission_rate {
         model.aff_commission_rate = Set(if v == 0.0 { None } else { Some(v) });
@@ -325,6 +340,7 @@ pub async fn duplicate_product(db: &DatabaseConnection, id: i32) -> AppResult<pr
         allow_usdt_erc20: Set(original.allow_usdt_erc20),
         post_pay_action_type: Set(original.post_pay_action_type.clone()),
         post_pay_action_value: Set(original.post_pay_action_value.clone()),
+        delivery_mode: Set(original.delivery_mode.clone()),
         aff_commission_rate: Set(original.aff_commission_rate),
         sort_order: Set(original.sort_order),
         min_quantity: Set(original.min_quantity),
@@ -404,6 +420,7 @@ fn to_product_response(
         allow_usdt_erc20: p.allow_usdt_erc20,
         post_pay_action_type: p.post_pay_action_type,
         post_pay_action_value: p.post_pay_action_value,
+        delivery_mode: p.delivery_mode,
         aff_commission_rate: p.aff_commission_rate,
         sort_order: p.sort_order,
         min_quantity: p.min_quantity,
