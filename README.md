@@ -144,7 +144,7 @@ password = "your-secure-password"
    - API 地址 (Docker 内: `http://tokenpay:5000`)
    - 自定义域名 (可选，例如 `https://pay.example.com`，用于给用户访问 TokenPay 支付页)
    - 通知密钥 (与 appsettings.json 中的 ApiToken 保持一致)
-4. 如需单独绑定域名，可将主机 `127.0.0.1:5001` 反代到 TokenPay 容器，默认 compose 已映射 `${TOKENPAY_BIND_HOST:-127.0.0.1}:${TOKENPAY_BIND_PORT:-5001}:5000`
+4. 如需单独绑定域名，可将主机 `15001` 端口反代到 TokenPay 容器，默认 compose 已映射 `${TOKENPAY_PORT:-15001}:5000`，需要改端口时直接修改左边宿主机端口即可
 
 ## 通知配置
 
