@@ -148,6 +148,26 @@ async fn test_connection(
                 }))),
             }
         }
+        "tokenpay" => match client.get(api_url).send().await {
+            Ok(resp) => {
+                let status = resp.status();
+                Ok(HttpResponse::Ok().json(serde_json::json!({
+                    "success": status.is_success() || status.is_redirection(),
+                    "message": format!("HTTP {}。Docker 部署建议 API 地址填写 http://tokenpay:5000，自定义域名单独填写外网域名。", status),
+                })))
+            }
+            Err(e) => {
+                let extra_hint = if api_url.contains("127.0.0.1") || api_url.contains("localhost") {
+                    "。当前看起来像 Docker 场景，建议把 API 地址改成 http://tokenpay:5000"
+                } else {
+                    ""
+                };
+                Ok(HttpResponse::Ok().json(serde_json::json!({
+                    "success": false,
+                    "message": format!("Connection failed: {}{}", e, extra_hint),
+                })))
+            }
+        },
         _ => match client.get(api_url).send().await {
             Ok(resp) => {
                 let status = resp.status();

@@ -139,10 +139,12 @@ password = "your-secure-password"
 
 ### TokenPay
 1. 部署 [TokenPay](https://github.com/LightCountry/TokenPay) 服务 (使用 `docker compose` 会自动部署)
-2. 编辑 `config/tokenpay/appsettings.json`，填写收款钱包地址
+2. 编辑 `config/tokenpay/appsettings.json`，填写收款钱包地址，并把 `WebSiteUrl` 改成你给 TokenPay 单独绑定的外网域名
 3. 在管理后台 → 支付通道 → TokenPay，填写:
    - API 地址 (Docker 内: `http://tokenpay:5000`)
+   - 自定义域名 (可选，例如 `https://pay.example.com`，用于给用户访问 TokenPay 支付页)
    - 通知密钥 (与 appsettings.json 中的 ApiToken 保持一致)
+4. 如需单独绑定域名，可将主机 `127.0.0.1:5001` 反代到 TokenPay 容器，默认 compose 已映射 `${TOKENPAY_BIND_HOST:-127.0.0.1}:${TOKENPAY_BIND_PORT:-5001}:5000`
 
 ## 通知配置
 

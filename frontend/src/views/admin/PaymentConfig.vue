@@ -21,6 +21,7 @@ const tokenpay = ref({
   is_active: false,
   api_url: 'http://tokenpay:5000',
   notify_secret: '',
+  custom_domain: '',
   tron_address: '',
   evm_address: '',
 })
@@ -44,6 +45,7 @@ onMounted(async () => {
         const c = typeof raw === 'string' ? JSON.parse(raw) : raw
         tokenpay.value.api_url = c.api_url || 'http://tokenpay:5000'
         tokenpay.value.notify_secret = c.notify_secret || ''
+        tokenpay.value.custom_domain = c.custom_domain || ''
         tokenpay.value.tron_address = c.tron_address || ''
         tokenpay.value.evm_address = c.evm_address || ''
       }
@@ -98,6 +100,7 @@ async function saveTokenpay() {
       config_json: JSON.stringify({
         api_url: tokenpay.value.api_url,
         notify_secret: tokenpay.value.notify_secret,
+        custom_domain: tokenpay.value.custom_domain,
         tron_address: tokenpay.value.tron_address,
         evm_address: tokenpay.value.evm_address,
       }),
@@ -172,6 +175,11 @@ async function saveTokenpay() {
             <input v-model="tokenpay.evm_address" placeholder="0x..." class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
             <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">USDT/USDC ERC20, Polygon, Base</p>
           </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">自定义域名</label>
+            <input v-model="tokenpay.custom_domain" placeholder="https://pay.example.com" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+            <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">填写给用户访问的外网域名，例如 https://pay.example.com。留空则直接使用 TokenPay 返回的地址。</p>
+          </div>
 
           <!-- Advanced toggle -->
           <div>
@@ -183,6 +191,7 @@ async function saveTokenpay() {
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.api_url') }}</label>
               <input v-model="tokenpay.api_url" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400" />
+              <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Docker 部署建议填写内网地址，例如 http://tokenpay:5000，仅供 VFaka 后端调用。</p>
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">{{ $t('payment.notify_secret') }}</label>

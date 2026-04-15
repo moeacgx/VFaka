@@ -19,6 +19,8 @@ services:
     build:
       context: ./vendor/TokenPay/src
       dockerfile: Dockerfile
+    ports:
+      - "${TOKENPAY_BIND_HOST:-127.0.0.1}:${TOKENPAY_BIND_PORT:-5001}:5000"
     expose:
       - "5000"
     volumes:

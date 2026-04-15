@@ -14,6 +14,8 @@ use crate::provider::{CallbackData, CallbackRawData, PaymentProvider, PaymentReq
 pub struct TokenPayConfig {
     pub api_url: String,
     pub notify_secret: String,
+    #[serde(default)]
+    pub custom_domain: String,
 }
 
 pub struct TokenPayProvider {
@@ -27,6 +29,25 @@ impl TokenPayProvider {
             config,
             client: reqwest::Client::new(),
         }
+    }
+
+    fn rewrite_pay_url(&self, original_url: &str) -> String {
+        let custom_domain = self.config.custom_domain.trim().trim_end_matches('/');
+        if custom_domain.is_empty() {
+            return original_url.to_string();
+        }
+
+        let parsed = match reqwest::Url::parse(original_url) {
+            Ok(value) => value,
+            Err(_) => return original_url.to_string(),
+        };
+
+        let mut rewritten = format!("{}{}", custom_domain, parsed.path());
+        if let Some(query) = parsed.query() {
+            rewritten.push('?');
+            rewritten.push_str(query);
+        }
+        rewritten
     }
 
     fn payment_method_to_currency(method: &PaymentMethod) -> AppResult<&'static str> {
@@ -138,9 +159,14 @@ impl PaymentProvider for TokenPayProvider {
             }
         }
 
+        let pay_url = data
+            .pay_url
+            .as_deref()
+            .map(|url| self.rewrite_pay_url(url));
+
         Ok(PaymentResponse {
             trade_no: data.order_id.unwrap_or_default(),
-            pay_url: data.pay_url,
+            pay_url,
             qr_code: None,
         })
     }
@@ -214,5 +240,34 @@ impl PaymentProvider for TokenPayProvider {
             PaymentMethod::UsdtErc20,
             PaymentMethod::UsdcErc20,
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rewrite_pay_url_uses_custom_domain() {
+        let provider = TokenPayProvider::new(TokenPayConfig {
+            api_url: "http://tokenpay:5000".to_string(),
+            notify_secret: "secret".to_string(),
+            custom_domain: "https://pay.example.com".to_string(),
+        });
+
+        let actual = provider.rewrite_pay_url("http://tokenpay:5000/OrderInfo?id=123&currency=TRX");
+        assert_eq!(actual, "https://pay.example.com/OrderInfo?id=123&currency=TRX");
+    }
+
+    #[test]
+    fn test_rewrite_pay_url_keeps_original_when_custom_domain_empty() {
+        let provider = TokenPayProvider::new(TokenPayConfig {
+            api_url: "http://tokenpay:5000".to_string(),
+            notify_secret: "secret".to_string(),
+            custom_domain: "".to_string(),
+        });
+
+        let actual = provider.rewrite_pay_url("http://tokenpay:5000/OrderInfo?id=123");
+        assert_eq!(actual, "http://tokenpay:5000/OrderInfo?id=123");
     }
 }
