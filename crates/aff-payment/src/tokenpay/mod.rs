@@ -69,15 +69,55 @@ impl TokenPayProvider {
 struct TokenPayCreateResponse {
     code: Option<i32>,
     msg: Option<String>,
-    data: Option<TokenPayCreateData>,
+    success: Option<bool>,
+    message: Option<String>,
+    data: Option<TokenPayCreatePayload>,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[serde(untagged)]
+enum TokenPayCreatePayload {
+    Url(String),
+    Object(TokenPayCreateData),
+}
+
+#[derive(Debug, Default, Deserialize)]
 #[allow(dead_code)]
 struct TokenPayCreateData {
+    #[serde(default, alias = "OrderId", alias = "order_id")]
     order_id: Option<String>,
+    #[serde(default, alias = "PayUrl", alias = "pay_url")]
     pay_url: Option<String>,
+}
+
+impl TokenPayCreateResponse {
+    fn is_success(&self) -> bool {
+        match (self.success, self.code) {
+            (Some(success), _) => success,
+            (None, Some(code)) => code == 0,
+            (None, None) => false,
+        }
+    }
+
+    fn error_message(&self) -> String {
+        self.message
+            .as_deref()
+            .or(self.msg.as_deref())
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    }
+
+    fn into_data(self) -> TokenPayCreateData {
+        match self.data {
+            Some(TokenPayCreatePayload::Url(url)) => TokenPayCreateData {
+                order_id: None,
+                pay_url: Some(url),
+            },
+            Some(TokenPayCreatePayload::Object(data)) => data,
+            None => TokenPayCreateData::default(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,23 +175,19 @@ impl PaymentProvider for TokenPayProvider {
             )));
         }
 
-        let tp_resp: TokenPayCreateResponse = serde_json::from_str(&body)
-            .map_err(|e| AppError::PaymentError(format!("TokenPay response parse failed: {} body={}", e, body)))?;
+        let tp_resp = parse_create_response(&body)?;
 
-        if tp_resp.code.unwrap_or(-1) != 0 {
+        if !tp_resp.is_success() {
             return Err(AppError::PaymentError(format!(
                 "TokenPay create order failed: {}",
-                tp_resp.msg.unwrap_or_default()
+                tp_resp.error_message()
             )));
         }
 
-        let data = tp_resp.data.unwrap_or(TokenPayCreateData {
-            order_id: None,
-            pay_url: None,
-        });
+        let data = tp_resp.into_data();
 
         match &data.pay_url {
-            Some(url) if !url.is_empty() => {}
+            Some(url) if !url.trim().is_empty() => {}
             _ => {
                 return Err(AppError::PaymentError(
                     "TokenPay returned no pay_url".to_string(),
@@ -243,6 +279,15 @@ impl PaymentProvider for TokenPayProvider {
     }
 }
 
+fn parse_create_response(body: &str) -> AppResult<TokenPayCreateResponse> {
+    serde_json::from_str(body).map_err(|e| {
+        AppError::PaymentError(format!(
+            "TokenPay response parse failed: {} body={}",
+            e, body
+        ))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,5 +314,35 @@ mod tests {
 
         let actual = provider.rewrite_pay_url("http://tokenpay:5000/OrderInfo?id=123");
         assert_eq!(actual, "http://tokenpay:5000/OrderInfo?id=123");
+    }
+
+    #[test]
+    fn test_parse_create_response_accepts_string_data() {
+        let body = r#"{"success":true,"message":"创建订单成功！","data":"https://tronbot.sn.ink/Pay?Id=abc"}"#;
+
+        let parsed = parse_create_response(body).expect("解析字符串 data 失败");
+        assert!(parsed.is_success());
+
+        let data = parsed.into_data();
+        assert_eq!(
+            data.pay_url.as_deref(),
+            Some("https://tronbot.sn.ink/Pay?Id=abc")
+        );
+    }
+
+    #[test]
+    fn test_parse_create_response_accepts_object_data() {
+        let body =
+            r#"{"code":0,"msg":"ok","data":{"OrderId":"tp-123","PayUrl":"http://tokenpay:5000/Pay?Id=123"}}"#;
+
+        let parsed = parse_create_response(body).expect("解析对象 data 失败");
+        assert!(parsed.is_success());
+
+        let data = parsed.into_data();
+        assert_eq!(data.order_id.as_deref(), Some("tp-123"));
+        assert_eq!(
+            data.pay_url.as_deref(),
+            Some("http://tokenpay:5000/Pay?Id=123")
+        );
     }
 }

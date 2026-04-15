@@ -11,7 +11,8 @@ pub async fn execute_post_action(
     order: &order::Model,
     config: Option<&AppConfig>,
 ) -> AppResult<String> {
-    match action_type {
+    match action_type.trim().to_ascii_lowercase().as_str() {
+        "" | "none" => Ok("No post-pay action configured".to_string()),
         "webhook" => execute_webhook(action_value, order).await,
         "command" => {
             let allowed = config
